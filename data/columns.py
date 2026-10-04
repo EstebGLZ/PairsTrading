@@ -7,9 +7,11 @@ class Column:
     DATE = "Date"
 
 class Feature:
-    DAILY_RETURNS = "daily_returns"
+    LOG_PRICE = "log_price"
+    DAILY_LOG_RETURNS = "daily_log_returns"
+    OPTICS_CLUSTER = "optics_cluster"
     
-PRICES_COLUMNS = [
+PRICE_COLUMNS = [
     Column.OPEN,
     Column.HIGH,
     Column.LOW,
