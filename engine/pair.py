@@ -14,7 +14,18 @@ class PairResult:
     hurst: float | None = None
     half_life: float | None = None
     mean_crossings: float | None = None
-
+    
+    def __str__(self) -> str:
+        return (
+            f"{self.ticker_y}/{self.ticker_x} "
+            f"(pvalue={self.pvalue:.4g}, "
+            f"test_stat={self.test_statistic:.3f}, "
+            f"hedge_ratio={self.hedge_ratio:.3f}, "
+            f"intercept={self.intercept:.3f}, "
+            f"hurst={self.hurst:.3f if self.hurst is not None else 'N/A'}, "
+            f"half_life={self.half_life:.2f if self.half_life is not None else 'N/A'}, "
+            f"mean_crossings={self.mean_crossings:.2f if self.mean_crossings is not None else 'N/A'})"
+        )
 
 @dataclass(frozen=True, slots=True)
 class PairSelectionConfig:
@@ -71,3 +82,16 @@ class PairSelectionConfig:
             raise ValueError(
                 "min_crossings must be >= 0."
             )
+            
+    def __str__(self) -> str:
+        return (
+            f"PairSelectionConfig("
+            f"n_components={self.n_components}, "
+            f"min_coverage={self.min_coverage}, "
+            f"min_samples={self.min_samples}, "
+            f"significance_level={self.significance_level}, "
+            f"max_hurst={self.max_hurst}, "
+            f"half_life=[{self.min_half_life}, {self.max_half_life}], "
+            f"min_crossings={self.min_crossings}"
+            f")"
+        )

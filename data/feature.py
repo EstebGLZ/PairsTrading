@@ -13,7 +13,7 @@ class FeatureEngine:
 
     @staticmethod
     def add_features(data: pd.DataFrame) -> None:
-
+        logger.info("Adding features to the dataset")
         if data.empty:
             raise RuntimeError(
                 "Can't add features to an empty dataframe. "

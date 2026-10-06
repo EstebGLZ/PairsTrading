@@ -6,7 +6,7 @@ from engine.pair_engine import PairEngine
 from engine.pair import PairSelectionConfig
 def setup_logging():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
     

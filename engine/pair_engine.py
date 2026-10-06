@@ -20,7 +20,8 @@ class PairEngine:
     def select_pairs(
         data: pd.DataFrame,
         config: PairSelectionConfig,
-    ):
+    ): 
+        logger.debug("Selecting pairs...")
         returns = PairEngine._align_returns(
             data=data,
             min_coverage=config.min_coverage,
@@ -34,13 +35,14 @@ class PairEngine:
         clusters = PairEngine._cluster(
             pca_features=pca_features, min_samples=config.min_samples
         )
-
+        
         candidates = PairEngine._generate_candidate_pairs(clusters=clusters)
-
+                
         validated_pairs = PairEngine._validate_candidates(
             candidates=candidates, data=data, config=config
         )
-        logger.info(f"Pair selection done. Found: {len(validated_pairs)} possible pairs")
+        
+        logger.debug(f"Final pairs: {len(validated_pairs)}")
         return validated_pairs
 
     @staticmethod
@@ -70,7 +72,7 @@ class PairEngine:
         if returns.empty:
             raise RuntimeError("No valid aligned return observations available.")
 
-        logger.info(
+        logger.debug(
             "Aligned returns: %d observations, %d tickers retained, "
             "%d tickers removed",
             returns.shape[0],
@@ -97,7 +99,7 @@ class PairEngine:
                 f"possible value ({max_components})."
             )
 
-        logger.info(
+        logger.debug(
             "Calculating PCA with %d components using " "%d observations and %d stocks",
             n_components,
             returns.shape[0],
@@ -116,7 +118,7 @@ class PairEngine:
 
         features.index.name = "Ticker"
 
-        logger.info(
+        logger.debug(
             "PCA explained variance: %.2f%%",
             pca.explained_variance_ratio_.sum() * 100,
         )
@@ -143,6 +145,14 @@ class PairEngine:
             index=pca_features.index,
             name=Feature.OPTICS_CLUSTER,
         )
+        
+        n_clusters = clusters[clusters != -1].nunique()
+        n_noise = (clusters == -1).sum()
+        logger.debug(
+            "OPTICS clustering done: %d clusters, %d noise tickers",
+            n_clusters,
+            n_noise,
+        )
 
         return clusters
 
@@ -161,7 +171,9 @@ class PairEngine:
             tickers = valid_clusters[valid_clusters == cluster_id].index.tolist()
 
             candidates.extend(combinations(tickers, 2))
-
+        
+        logger.debug("Generated %d candidate pairs",len(candidates))
+        
         return candidates
 
     @staticmethod
@@ -187,11 +199,12 @@ class PairEngine:
                 ticker_b=ticker_b,
                 log_prices=log_prices,
                 config = config,
-            )
-
+            ) 
+            
             if valid:
                 results.append(pair)
-
+        
+        logger.debug("Validation done: %d candidates", len(candidates))
         return results
 
     @staticmethod
@@ -206,7 +219,7 @@ class PairEngine:
             y=log_prices[ticker_a],
             x=log_prices[ticker_b],
         )
-
+        
         result_ba = PairEngine._engle_granger(
             y=log_prices[ticker_b],
             x=log_prices[ticker_a],
@@ -225,6 +238,7 @@ class PairEngine:
         hurst = None
         half_life = None
         crossings = None
+        
         if best["pvalue"] <= config.significance_level:
             (is_valid, hurst, half_life, crossings) = PairEngine._validate_pair(
                 spread=best["spread"], config=config
