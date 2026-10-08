@@ -10,7 +10,10 @@ class PairResult:
 
     hedge_ratio: float
     intercept: float
-
+    
+    spread_mean: float
+    spread_std: float
+    
     hurst: float | None = None
     half_life: float | None = None
     mean_crossings: float | None = None

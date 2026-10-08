@@ -10,7 +10,7 @@ from itertools import combinations
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import coint
 
-from engine.pair import PairResult, PairSelectionConfig
+from models.pair import PairResult, PairSelectionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +254,8 @@ class PairEngine:
             hurst=hurst,
             half_life=half_life,
             mean_crossings=crossings,
+            spread_mean=best["spread"].mean(),
+            spread_std=best["spread"].std()
         )
         return result, is_valid
 

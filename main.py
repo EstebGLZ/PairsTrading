@@ -3,7 +3,7 @@ from data.fetcher import DataFetcher
 from utils.load_config import Configuration
 from data.feature import FeatureEngine
 from engine.pair_engine import PairEngine
-from engine.pair import PairSelectionConfig
+from models.pair import PairSelectionConfig
 def setup_logging():
     logging.basicConfig(
         level=logging.DEBUG,
