@@ -3,8 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from data.columns import Column, Feature, PRICE_COLUMNS
-
+from data.columns import Column, Feature
 
 logger = logging.getLogger(__name__)
 
@@ -13,23 +12,16 @@ class FeatureEngine:
 
     @staticmethod
     def add_features(data: pd.DataFrame) -> None:
+        """
+        Adds features to the given data frame
+        Pre: Valid data order chronologically
+        :param data: The source data
+        :return: None
+        """
         logger.info("Adding features to the dataset")
-        if data.empty:
-            raise RuntimeError(
-                "Can't add features to an empty dataframe. "
-                "Make sure to fetch market data before calling this method."
-            )
-
-        missing_columns = [
-            column
-            for column in PRICE_COLUMNS
-            if column not in data.columns
-        ]
-
-        if missing_columns:
-            raise RuntimeError(
-                f"Missing required columns: {missing_columns}"
-            )
+        
+        if not data.index.is_monotonic_increasing:
+            raise ValueError("Data must be sorted by Ticker and Date.")
 
         logger.info("Calculating daily log returns")
 

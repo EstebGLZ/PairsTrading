@@ -1,2 +1,3 @@
 # PairsTrading
-Pairs trading egine
+
+Backtest walk-forward de pairs trading.

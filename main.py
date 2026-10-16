@@ -1,25 +1,49 @@
 import logging
-from data.fetcher import DataFetcher
+from datetime import datetime, timezone
+from pathlib import Path
+
+from analysis.performance import PerformanceAnalyzer
+from engine.backtest_engine import BacktestEngine
 from utils.load_config import Configuration
-from data.feature import FeatureEngine
-from engine.pair_engine import PairEngine
-from models.pair import PairSelectionConfig
+
+logger = logging.getLogger(__name__)
+
+
 def setup_logging():
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
     )
-    
+
+
 def main() -> None:
     setup_logging()
-    
+
     config = Configuration()
     config.load_config("config.json")
-    
-    data = DataFetcher.fetch(config.get_param(key="stocks"), config.get_param("start"), config.get_param("end"))
-    FeatureEngine.add_features(data)
-    pairs = PairEngine.select_pairs(data, PairSelectionConfig(**config.get_param("pair_selection")))
-    
-    print(f"{pairs}")
+
+    engine: BacktestEngine = BacktestEngine(tickers=config.get_stocks(),
+                                            start_date=config.get_start_date(),
+                                            end_date=config.get_end_date(),
+                                            starting_capital=10_000)
+
+    engine.start(pair_config=config.get_pair_selection_config(),
+                 trading_config=config.get_trading_config(),
+                 trading_window=20,
+                 formation_window=252)
+    logger.info(engine.portfolio)
+
+    report = PerformanceAnalyzer.analyze(
+        engine.portfolio.equity,
+        starting_capital=engine.portfolio.starting_capital,
+        periods_per_year=252,
+        annual_risk_free_rate=0.0,
+    )
+    logger.info("\n%s", report.summary())
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
+    output = report.export(Path(__file__).resolve().parent / "results" / run_id)
+    logger.info("Performance report saved to %s", output)
+
+
 if __name__ == "__main__":
     main()

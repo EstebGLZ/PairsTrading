@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from utils.validation_utils import ValidationUtils as VUtils
+
+
 @dataclass(frozen=True, slots=True)
 class PairResult:
     ticker_y: str
@@ -10,25 +13,36 @@ class PairResult:
 
     hedge_ratio: float
     intercept: float
-    
+
     spread_mean: float
     spread_std: float
-    
+
     hurst: float | None = None
     half_life: float | None = None
     mean_crossings: float | None = None
-    
+
     def __str__(self) -> str:
+        hurst_text = "N/A" if self.hurst is None else f"{self.hurst:.3f}"
+
+        half_life_text = "N/A" if self.half_life is None else f"{self.half_life:.2f}"
+
+        crossings_text = "N/A" if self.mean_crossings is None else f"{self.mean_crossings:.2f}"
+
         return (
             f"{self.ticker_y}/{self.ticker_x} "
             f"(pvalue={self.pvalue:.4g}, "
             f"test_stat={self.test_statistic:.3f}, "
             f"hedge_ratio={self.hedge_ratio:.3f}, "
             f"intercept={self.intercept:.3f}, "
-            f"hurst={self.hurst:.3f if self.hurst is not None else 'N/A'}, "
-            f"half_life={self.half_life:.2f if self.half_life is not None else 'N/A'}, "
-            f"mean_crossings={self.mean_crossings:.2f if self.mean_crossings is not None else 'N/A'})"
+            f"hurst={hurst_text}, "
+            f"half_life={half_life_text}, "
+            f"mean_crossings={crossings_text})"
         )
+
+    @property
+    def pair(self) -> tuple[str, str]:
+        return self.ticker_y, self.ticker_x
+
 
 @dataclass(frozen=True, slots=True)
 class PairSelectionConfig:
@@ -46,46 +60,27 @@ class PairSelectionConfig:
     min_crossings: float = 12.0
 
     def __post_init__(self) -> None:
-        if self.n_components <= 0:
-            raise ValueError(
-                "n_components must be > 0."
-            )
+        VUtils.require_positive("n_components", self.n_components)
+        VUtils.require_positive("min_samples", self.min_samples)
+        VUtils.require_positive("min_half_life", self.min_half_life, False)
+        VUtils.require_positive("max_half_life", self.max_half_life, False)
+        VUtils.require_positive("min_crossings", self.min_crossings, False)
 
         if not 0 < self.min_coverage <= 1:
-            raise ValueError(
-                "min_coverage must be between 0 and 1."
-            )
+            raise ValueError("min_coverage must be between 0 and 1.")
 
         if self.min_samples < 2:
-            raise ValueError(
-                "min_samples must be >= 2."
-            )
+            raise ValueError("min_samples must be >= 2.")
 
         if not 0 < self.significance_level < 1:
-            raise ValueError(
-                "significance_level must be between 0 and 1."
-            )
+            raise ValueError("significance_level must be between 0 and 1.")
 
         if not 0 < self.max_hurst <= 1:
-            raise ValueError(
-                "max_hurst must be between 0 and 1."
-            )
-
-        if self.min_half_life < 0:
-            raise ValueError(
-                "min_half_life must be >= 0."
-            )
+            raise ValueError("max_hurst must be between 0 and 1.")
 
         if self.max_half_life <= self.min_half_life:
-            raise ValueError(
-                "max_half_life must be greater than min_half_life."
-            )
+            raise ValueError("max_half_life must be greater than min_half_life.")
 
-        if self.min_crossings < 0:
-            raise ValueError(
-                "min_crossings must be >= 0."
-            )
-            
     def __str__(self) -> str:
         return (
             f"PairSelectionConfig("

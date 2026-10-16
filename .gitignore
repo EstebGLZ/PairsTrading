@@ -1,4 +1,8 @@
 # Byte-compiled / optimized / DLL files
+# Generated backtest reports
+results/
+.idea/
+cache/
 __pycache__/
 *.py[codz]
 *$py.class
