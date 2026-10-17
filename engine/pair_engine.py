@@ -443,10 +443,10 @@ class PairEngine:
         beta = model.params["lagged"]
 
         # beta >= 0 means no estimated restoring force
-        if beta >= 0:
+        if beta >= 0 or beta <= -1:
             return np.inf
 
-        half_life = -np.log(2) / beta
+        half_life = -np.log(2) / np.log(1.0 + beta)
 
         return float(half_life)
 

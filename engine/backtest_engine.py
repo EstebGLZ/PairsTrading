@@ -88,7 +88,7 @@ class BacktestEngine:
             # Generate pairs for this session
             formation_data = self.data[self.data.index.get_level_values("Date").isin(formation_dates)]
             pairs: list[PairResult] = PairEngine.select_pairs(data=formation_data, config=pair_config)
-            pairs = PairEngine.rank_pairs(pairs)
+            pairs = PairEngine.rank_pairs(pairs=pairs, top_n=5)
 
             # Go through each trading dates
             for j, date in enumerate(trading_dates):
