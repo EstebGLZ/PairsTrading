@@ -14,6 +14,8 @@ class TradingConfig:
     half_life_time_exit_factor: float = 3.0  # Time exit factor based on half life value
     zscore_window: int = 30  # zscore calculation rolling window
     max_position: int = 10  # How many position to trade at once
+    pairs_top_n: int = 5  # The best n pairs to select for trading
+    allocation_per_pair: float = 0.1  # Allocation of the portfolio per pair
 
     def __post_init__(self):
         for name, value in (("entry_zscore", self.entry_zscore),
@@ -25,6 +27,8 @@ class TradingConfig:
         VUtils.require_positive("half_life_time_exit_factor", self.half_life_time_exit_factor)
         VUtils.require_positive("zscore_window", self.zscore_window)
         VUtils.require_positive("max_position", self.max_position)
+        VUtils.require_positive("pairs_top_n", self.pairs_top_n)
+        VUtils.require_positive("allocation_per_pair", self.allocation_per_pair)
 
         if not (0 <= self.exit_zscore < self.entry_zscore):
             raise ValueError("Expected 0 <= exit_zscore < entry_zscore.")
@@ -34,6 +38,11 @@ class TradingConfig:
 
         if self.zscore_window <= 0:
             raise ValueError("Expected zscore_window > 0.")
+
+        if self.pairs_top_n <= 0:
+            raise ValueError("Expected pairs_top_n > 0.")
+        if self.allocation_per_pair > 1:
+            raise ValueError("Expected allocation_per_pair must be between 0 and 1.")
 
 
 class TradingSignal(Enum):

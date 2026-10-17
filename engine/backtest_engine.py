@@ -91,7 +91,7 @@ class BacktestEngine:
             # Generate pairs for this session
             formation_data = self.data[self.data.index.get_level_values("Date").isin(formation_dates)]
             pairs: list[PairResult] = PairEngine.select_pairs(data=formation_data, config=pair_config)
-            pairs = PairEngine.rank_pairs(pairs=pairs, top_n=5)
+            pairs = PairEngine.rank_pairs(pairs=pairs, top_n=trading_config.pairs_top_n)
 
             # Go through each trading dates
             for j, date in enumerate(trading_dates):
@@ -99,7 +99,7 @@ class BacktestEngine:
                 opening_prices = open_matrix.loc[date].to_dict()
                 closing_prices = close_matrix.loc[date].to_dict()
                 # Execute orders
-                self._execute_pending_orders(date, opening_prices)
+                self._execute_pending_orders(date, opening_prices, trading_config)
 
                 current_idx = i + formation_window + j
                 start_idx = max(0, current_idx - trading_config.zscore_window + 1)
@@ -172,11 +172,12 @@ class BacktestEngine:
         logger.info(f"Orders that have not been executed: {len(self.pending_orders)}")
         self.pending_orders.clear()
 
-    def _execute_pending_orders(self, date: datetime, prices: dict[str, float]) -> None:
+    def _execute_pending_orders(self, date: datetime, prices: dict[str, float], config: TradingConfig) -> None:
         """
         Execute all the pending orders
         :param date: The trading date
         :param prices: The assets' prices
+        :param config: The trading config
         :return: None
         """
 
@@ -202,7 +203,7 @@ class BacktestEngine:
                     continue
                 try:
                     current_equity = next(reversed(self.portfolio.equity.values()), self.portfolio.starting_capital)
-                    target_capital = self.allocation_per_pair_pct * current_equity
+                    target_capital = config.allocation_per_pair * current_equity
                     capital_to_allocate = min(target_capital, self.portfolio.available_cash)
 
                     # No negative capital
