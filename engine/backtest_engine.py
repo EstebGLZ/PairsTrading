@@ -76,6 +76,9 @@ class BacktestEngine:
         if len(dates) <= formation_window:
             raise ValueError("Not enough sessions for formation and at least one trading session.")
 
+        close_matrix = self.data[Column.CLOSE].unstack(level="Ticker")
+        open_matrix = self.data[Column.OPEN].unstack(level="Ticker")
+
         # Handle the formation windows
         for i in range(0, len(dates) - formation_window, trading_window):
             # Get the current trading dates
@@ -93,19 +96,23 @@ class BacktestEngine:
             # Go through each trading dates
             for j, date in enumerate(trading_dates):
                 # Get today's prices
-                opening_prices = self.data.xs(date, level="Date")[Column.OPEN].to_dict()
-                closing_prices = self.data.xs(date, level="Date")[Column.CLOSE].to_dict()
-
+                opening_prices = open_matrix.loc[date].to_dict()
+                closing_prices = close_matrix.loc[date].to_dict()
                 # Execute orders
                 self._execute_pending_orders(date, opening_prices)
+
+                current_idx = i + formation_window + j
+                start_idx = max(0, current_idx - trading_config.zscore_window + 1)
+                end_idx = current_idx + 1
+                hist_close = close_matrix.iloc[start_idx:end_idx]
 
                 # Handle exits
                 for pos_key, position in list(self.portfolio.open_positions.items()):
                     try:
                         # Get the pair's price
                         prices = {
-                            position.pair_model.ticker_y: closing_prices[position.pair_model.ticker_y],
-                            position.pair_model.ticker_x: closing_prices[position.pair_model.ticker_x],
+                            position.pair_model.ticker_y: hist_close[position.pair_model.ticker_y].tolist(),
+                            position.pair_model.ticker_x: hist_close[position.pair_model.ticker_x].tolist(),
                         }
 
                         curr_position: PairPosition | None = self.portfolio.get_position(*position.pair)
@@ -131,11 +138,15 @@ class BacktestEngine:
                     if self.portfolio.has_position(pair.ticker_x) or self.portfolio.has_position(pair.ticker_y):
                         continue
 
+                    # Don't trade too much
+                    if len(self.portfolio.open_positions) >= trading_config.max_position:
+                        continue
+
                     try:
                         # Get the prices
                         prices = {
-                            pair.ticker_y: closing_prices[pair.ticker_y],
-                            pair.ticker_x: closing_prices[pair.ticker_x],
+                            pair.ticker_y: hist_close[pair.ticker_y].tolist(),
+                            pair.ticker_x: hist_close[pair.ticker_x].tolist(),
                         }
                         order: TradingOrder | None = TradingEngine.process_pair(
                             pair=pair,
@@ -175,7 +186,7 @@ class BacktestEngine:
             key=lambda order: order.signal != TradingSignal.EXIT,
         )
 
-        self.pending_orders = orders.copy()
+        self.pending_orders.clear()  # Clear the list as we handle each order
 
         # Iterate through each order
         for order in orders:
@@ -186,6 +197,9 @@ class BacktestEngine:
 
             # Open a position
             if order.signal in (TradingSignal.LONG_SPREAD, TradingSignal.SHORT_SPREAD):
+                # Make sure we don't trade a ticker more than once
+                if self.portfolio.has_position(pair.ticker_x) or self.portfolio.has_position(pair.ticker_y):
+                    continue
                 try:
                     current_equity = next(reversed(self.portfolio.equity.values()), self.portfolio.starting_capital)
                     target_capital = self.allocation_per_pair_pct * current_equity
@@ -224,5 +238,3 @@ class BacktestEngine:
                     exit_price_y=price_y)
             else:
                 raise ValueError(f"Unexpected order signal: {order.signal}")
-
-            self.pending_orders.remove(order)  # Remove the handled order

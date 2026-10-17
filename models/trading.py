@@ -11,7 +11,9 @@ class TradingConfig:
     entry_zscore: float = 2.5  # zscore to trigger an entry
     exit_zscore: float = 0.0  # zscore to trigger an exit
     stop_zscore_delta: float = 1.0  # zscore delta to trigger a stop loss (entry_zscore + stop_zscore_delta)
-    half_life_time_exit_factor: float = 3.0
+    half_life_time_exit_factor: float = 3.0  # Time exit factor based on half life value
+    zscore_window: int = 30  # zscore calculation rolling window
+    max_position: int = 10  # How many position to trade at once
 
     def __post_init__(self):
         for name, value in (("entry_zscore", self.entry_zscore),
@@ -21,9 +23,17 @@ class TradingConfig:
 
         VUtils.require_positive("stop_zscore_delta", self.stop_zscore_delta)
         VUtils.require_positive("half_life_time_exit_factor", self.half_life_time_exit_factor)
+        VUtils.require_positive("zscore_window", self.zscore_window)
+        VUtils.require_positive("max_position", self.max_position)
 
         if not (0 <= self.exit_zscore < self.entry_zscore):
             raise ValueError("Expected 0 <= exit_zscore < entry_zscore.")
+
+        if self.max_position <= 0:
+            raise ValueError("Expected max_position > 0.")
+
+        if self.zscore_window <= 0:
+            raise ValueError("Expected zscore_window > 0.")
 
 
 class TradingSignal(Enum):

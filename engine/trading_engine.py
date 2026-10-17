@@ -87,20 +87,20 @@ class TradingEngine:
     @staticmethod
     def _calculate_spread(
             pair: PairResult,
-            log_price_y: float,
-            log_price_x: float,
-    ) -> float:
+            prices_y: list[float],
+            prices_x: list[float],
+    ) -> np.ndarray:
         """
         Calculates the current spread based on the data acquired at the pair selection time
         :param pair: The traded pair
-        :param log_price_y: Y asset's log prices
-        :param log_price_x: X asset's log prices
-        :return: The estimated current spread
+        :param prices_y: Y asset's prices
+        :param prices_x: X asset's prices
+        :return: The estimated spread
         """
         return (
-                log_price_y
+                np.log(prices_y)
                 - pair.intercept
-                - pair.hedge_ratio * log_price_x
+                - pair.hedge_ratio * np.log(prices_x)
         )
 
     @staticmethod
@@ -182,7 +182,7 @@ class TradingEngine:
         return float(quantity_y), float(quantity_x)
 
     @staticmethod
-    def process_pair(pair: PairResult, prices: dict[str, float], date: datetime,
+    def process_pair(pair: PairResult, prices: dict[str, list[float]], date: datetime,
                      config: TradingConfig, position: PairPosition | None = None) -> TradingOrder | None:
         """
         Generates entry or exit signals and create an order for the given pair
@@ -193,24 +193,26 @@ class TradingEngine:
         :param config: The trading configuration
         :param position: The current position. None if we are looking for an entry
         :return: A Trading order if a signal is found, otherwise None
-        :raises: ValueError if the given direction is invalid (Not long / short spread) or if the prices are not strictly positive
+        :raises: ValueError if the given direction is invalid (Not long / short spread)
         """
-        price_y = prices[pair.ticker_y]
-        price_x = prices[pair.ticker_x]
+        prices_y = prices[pair.ticker_y]
+        prices_x = prices[pair.ticker_x]
 
-        for name, value in (("price_y", price_y), ("price_x", price_x)):
-            VUtils.require_positive(name, value)
-
-        spread: float = TradingEngine._calculate_spread(
+        spread: np.ndarray = TradingEngine._calculate_spread(
             pair=pair,
-            log_price_y=np.log(price_y),
-            log_price_x=np.log(price_x),
+            prices_y=prices_y,
+            prices_x=prices_x,
         )
 
+        rolling_std: float = float(np.std(spread))
+
+        if rolling_std < 1e-8:
+            rolling_std = pair.spread_std
+
         zscore: float = TradingEngine._calculate_zscore(
-            spread=spread,
+            spread=spread[-1],
             mean=pair.spread_mean,
-            std=pair.spread_std,
+            std=rolling_std,
         )
 
         if position is not None:  # We look for an exit

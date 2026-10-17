@@ -1,6 +1,6 @@
 # Byte-compiled / optimized / DLL files
 # Generated backtest reports
-results/
+reports/
 .idea/
 cache/
 __pycache__/

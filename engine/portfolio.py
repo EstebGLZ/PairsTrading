@@ -195,6 +195,6 @@ class Portfolio:
                 f"Unrealized pnl: {unrealized_pnl}\n"
                 f"Total return: {total_return}\n"
                 f"Realized pnl: {realized_pnl}\n"
-                f"Opened position: {self.open_positions}\n"
+                f"Opened position: {len(self.open_positions)}\n"
                 f"Closed position: {len(self.closed_positions)}"
                 )

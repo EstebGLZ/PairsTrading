@@ -1,8 +1,7 @@
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
-from analysis.performance import PerformanceAnalyzer
+from analysis.statistics import Statistics
 from engine.backtest_engine import BacktestEngine
 from utils.load_config import Configuration
 
@@ -33,16 +32,11 @@ def main() -> None:
                  formation_window=252)
     logger.info(engine.portfolio)
 
-    report = PerformanceAnalyzer.analyze(
-        engine.portfolio.equity,
-        starting_capital=engine.portfolio.starting_capital,
-        periods_per_year=252,
-        annual_risk_free_rate=0.0,
-    )
-    logger.info("\n%s", report.summary())
+    stats: Statistics = Statistics(portfolio=engine.portfolio, periods_per_year=252, annual_risk_free_rate=0.0)
+    stats.summary()
+
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
-    output = report.export(Path(__file__).resolve().parent / "results" / run_id)
-    logger.info("Performance report saved to %s", output)
+    stats.export(f"./reports/{run_id}")
 
 
 if __name__ == "__main__":
