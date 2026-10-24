@@ -2,8 +2,7 @@ import json
 import logging
 from datetime import datetime
 
-from models.pair import PairSelectionConfig
-from models.trading import TradingConfig
+from models import PairSelectionConfig, TradingConfig
 
 logger = logging.getLogger(__name__)
 

@@ -4,8 +4,7 @@ from decimal import Decimal
 
 import numpy as np
 
-from models.pair import PairResult
-from models.trading import TradingSignal, TradingConfig, TradingOrder, PairPosition
+from models import TradingConfig, TradingSignal, TradingOrder, Pair, PairPosition
 from utils.validation_utils import ValidationUtils as VUtils
 
 logger = logging.getLogger(__name__)
@@ -18,7 +17,7 @@ class TradingEngine:
 
     @staticmethod
     def _generate_entry_signal(zscore: float,
-                               pair: PairResult,
+                               pair: Pair,
                                config: TradingConfig,
                                date: datetime) -> TradingOrder | None:
         """
@@ -86,7 +85,7 @@ class TradingEngine:
 
     @staticmethod
     def _calculate_spread(
-            pair: PairResult,
+            pair: Pair,
             prices_y: list[float],
             prices_x: list[float],
     ) -> np.ndarray:
@@ -182,7 +181,7 @@ class TradingEngine:
         return float(quantity_y), float(quantity_x)
 
     @staticmethod
-    def process_pair(pair: PairResult, prices: dict[str, list[float]], date: datetime,
+    def process_pair(pair: Pair, prices: dict[str, list[float]], date: datetime,
                      config: TradingConfig, position: PairPosition | None = None) -> TradingOrder | None:
         """
         Generates entry or exit signals and create an order for the given pair

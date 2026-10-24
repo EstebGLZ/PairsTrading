@@ -1,55 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
 
-from models.pair import PairResult
+from models.order import TradingSignal
+from models.pair import Pair
 from utils.validation_utils import ValidationUtils as VUtils
-
-
-@dataclass(frozen=True, slots=True)
-class TradingConfig:
-    entry_zscore: float = 2.5  # zscore to trigger an entry
-    exit_zscore: float = 0.0  # zscore to trigger an exit
-    stop_zscore_delta: float = 1.0  # zscore delta to trigger a stop loss (entry_zscore + stop_zscore_delta)
-    half_life_time_exit_factor: float = 3.0  # Time exit factor based on half life value
-    zscore_window: int = 30  # zscore calculation rolling window
-    max_position: int = 10  # How many position to trade at once
-    pairs_top_n: int = 5  # The best n pairs to select for trading
-    allocation_per_pair: float = 0.1  # Allocation of the portfolio per pair
-
-    def __post_init__(self):
-        for name, value in (("entry_zscore", self.entry_zscore),
-                            ("exit_zscore", self.exit_zscore),
-                            ("stop_zscore_delta", self.stop_zscore_delta)):
-            VUtils.require_finite(name, value)
-
-        VUtils.require_positive("stop_zscore_delta", self.stop_zscore_delta)
-        VUtils.require_positive("half_life_time_exit_factor", self.half_life_time_exit_factor)
-        VUtils.require_positive("zscore_window", self.zscore_window)
-        VUtils.require_positive("max_position", self.max_position)
-        VUtils.require_positive("pairs_top_n", self.pairs_top_n)
-        VUtils.require_positive("allocation_per_pair", self.allocation_per_pair)
-
-        if not (0 <= self.exit_zscore < self.entry_zscore):
-            raise ValueError("Expected 0 <= exit_zscore < entry_zscore.")
-
-        if self.max_position <= 0:
-            raise ValueError("Expected max_position > 0.")
-
-        if self.zscore_window <= 0:
-            raise ValueError("Expected zscore_window > 0.")
-
-        if self.pairs_top_n <= 0:
-            raise ValueError("Expected pairs_top_n > 0.")
-        if self.allocation_per_pair > 1:
-            raise ValueError("Expected allocation_per_pair must be between 0 and 1.")
-
-
-class TradingSignal(Enum):
-    LONG_SPREAD = 1
-    HOLD = 0
-    SHORT_SPREAD = -1
-    EXIT = 2
 
 
 @dataclass
@@ -57,7 +11,7 @@ class PairPosition:
     """
     Classe representing a trading position
     """
-    pair_model: PairResult
+    pair_model: Pair
 
     direction: TradingSignal
 
@@ -96,7 +50,7 @@ class PairPosition:
         if not self.is_open:
             return False
 
-        if exit_date < self.entry_date or exit_price_x <= 0 or exit_price_y <= 0:
+        if exit_date < self.entry_date:
             return False
 
         self.exit_date = exit_date
@@ -197,14 +151,10 @@ class PairPosition:
                 + self.quantity_x * (price_x - self.entry_price_x)
         )
 
-
-@dataclass(frozen=True, slots=True)
-class TradingOrder:
-    # Entry info
-    pair: PairResult
-    signal: TradingSignal
-    signal_date: datetime
-    zscore: float
-    # Stop loss info
-    stop_loss_zscore: float | None = None
-    time_exit: datetime | None = None
+    def __post_init__(self) -> None:
+        VUtils.require_positive("entry_price_y", self.entry_price_y)
+        VUtils.require_positive("entry_price_x", self.entry_price_x)
+        VUtils.require_finite("quantity_y", self.quantity_y)
+        VUtils.require_finite("quantity_x", self.quantity_x)
+        if self.quantity_y == 0 and self.quantity_x == 0:
+            raise ValueError("Position quantities cannot both be zero.")

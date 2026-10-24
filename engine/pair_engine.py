@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.stattools import coint
 
 from data.columns import Feature
-from models.pair import PairResult, PairSelectionConfig
+from models import PairSelectionConfig, Pair
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class PairEngine:
     """
 
     @staticmethod
-    def select_pairs(data: pd.DataFrame, config: PairSelectionConfig) -> list[PairResult]:
+    def select_pairs(data: pd.DataFrame, config: PairSelectionConfig) -> list[Pair]:
         """
         Main method to create pairs
         :param data: The assets' data
@@ -53,7 +53,7 @@ class PairEngine:
         return validated_pairs
 
     @staticmethod
-    def rank_pairs(pairs: list[PairResult], top_n: int = 5) -> list[PairResult]:
+    def rank_pairs(pairs: list[Pair], top_n: int = 5) -> list[Pair]:
         """
         Rank the generated pairs by their mean crossing, half live and pvalue
         :param pairs: The available pairs
@@ -207,7 +207,7 @@ class PairEngine:
 
     @staticmethod
     def _validate_candidates(candidates: list[tuple[str, str]], data: pd.DataFrame, config: PairSelectionConfig) -> \
-            list[PairResult]:
+            list[Pair]:
         """
         For each candidate, check if they are are statistically tradeable
         :param candidates: The generated candidates
@@ -238,7 +238,7 @@ class PairEngine:
 
     @staticmethod
     def _test_pair(ticker_a: str, ticker_b: str, log_prices: pd.DataFrame, config: PairSelectionConfig) -> tuple[
-        PairResult, bool]:
+        Pair, bool]:
 
         result_ab = PairEngine._engle_granger(
             y=log_prices[ticker_a],
@@ -269,7 +269,7 @@ class PairEngine:
                 spread=best["spread"], config=config
             )
 
-        result = PairResult(
+        result = Pair(
             ticker_y=ticker_y,
             ticker_x=ticker_x,
             pvalue=best["pvalue"],

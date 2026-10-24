@@ -4,7 +4,7 @@ from utils.validation_utils import ValidationUtils as VUtils
 
 
 @dataclass(frozen=True, slots=True)
-class PairResult:
+class Pair:
     ticker_y: str
     ticker_x: str
 
@@ -43,53 +43,12 @@ class PairResult:
     def pair(self) -> tuple[str, str]:
         return self.ticker_y, self.ticker_x
 
-
-@dataclass(frozen=True, slots=True)
-class PairSelectionConfig:
-    n_components: int = 5
-    min_coverage: float = 0.95
-    min_samples: int = 3
-
-    significance_level: float = 0.05
-
-    max_hurst: float = 0.5
-
-    min_half_life: float = 1.0
-    max_half_life: float = 365.0
-
-    min_crossings: float = 12.0
-
     def __post_init__(self) -> None:
-        VUtils.require_positive("n_components", self.n_components)
-        VUtils.require_positive("min_samples", self.min_samples)
-        VUtils.require_positive("min_half_life", self.min_half_life, False)
-        VUtils.require_positive("max_half_life", self.max_half_life, False)
-        VUtils.require_positive("min_crossings", self.min_crossings, False)
-
-        if not 0 < self.min_coverage <= 1:
-            raise ValueError("min_coverage must be between 0 and 1.")
-
-        if self.min_samples < 2:
-            raise ValueError("min_samples must be >= 2.")
-
-        if not 0 < self.significance_level < 1:
-            raise ValueError("significance_level must be between 0 and 1.")
-
-        if not 0 < self.max_hurst <= 1:
-            raise ValueError("max_hurst must be between 0 and 1.")
-
-        if self.max_half_life <= self.min_half_life:
-            raise ValueError("max_half_life must be greater than min_half_life.")
-
-    def __str__(self) -> str:
-        return (
-            f"PairSelectionConfig("
-            f"n_components={self.n_components}, "
-            f"min_coverage={self.min_coverage}, "
-            f"min_samples={self.min_samples}, "
-            f"significance_level={self.significance_level}, "
-            f"max_hurst={self.max_hurst}, "
-            f"half_life=[{self.min_half_life}, {self.max_half_life}], "
-            f"min_crossings={self.min_crossings}"
-            f")"
-        )
+        if self.ticker_y == self.ticker_x:
+            raise ValueError("A pair cannot consist of the same asset twice.")
+        VUtils.require_positive("spread_std", self.spread_std)
+        VUtils.require_finite("spread_mean", self.spread_mean)
+        VUtils.require_finite("intercept", self.intercept)
+        VUtils.require_finite("hedge_ratio", self.hedge_ratio)
+        if self.hedge_ratio == 0:
+            raise ValueError("Hedge ratio cannot be 0.")

@@ -1,8 +1,7 @@
 import logging
 from datetime import datetime
 
-from models.pair import PairResult
-from models.trading import PairPosition, TradingOrder
+from models import TradingOrder, Pair, PairPosition
 from utils.validation_utils import ValidationUtils as VUtils
 
 logger = logging.getLogger(__name__)
@@ -58,12 +57,6 @@ class Portfolio:
         :return: Whether the position was opened or not
         :raises ValueError: If one of the given number is not valid
         """
-        # Check the given numbers
-        for name, quantity in (("quantity_y", quantity_y), ("quantity_x", quantity_x)):
-            VUtils.require_finite(name, quantity)
-
-        for name, price in (("entry_price_y", entry_price_y), ("entry_price_x", entry_price_x)):
-            VUtils.require_positive(name, price)
 
         position: PairPosition = PairPosition(
             pair_model=order.pair,
@@ -97,7 +90,7 @@ class Portfolio:
 
         return True
 
-    def close_position(self, pair: PairResult, exit_date: datetime, exit_zscore: float | None,
+    def close_position(self, pair: Pair, exit_date: datetime, exit_zscore: float | None,
                        exit_price_y: float,
                        exit_price_x: float) -> bool:
         """
@@ -123,7 +116,7 @@ class Portfolio:
 
         for name, value in (("exit_price_x", exit_price_x), ("exit_price_y", exit_price_y)):
             VUtils.require_positive(name, value)
-
+            
         # Close the position
         closed: bool = position.close(
             exit_date=exit_date,

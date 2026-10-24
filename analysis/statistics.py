@@ -11,8 +11,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import PercentFormatter
 
 from engine.portfolio import Portfolio
-from models.reporting import Report
-from models.trading import PairPosition
+from models import PairPosition, Report
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,7 @@ from data.fetcher import DataFetcher
 from engine.pair_engine import PairEngine
 from engine.portfolio import Portfolio
 from engine.trading_engine import TradingEngine
-from models.pair import PairSelectionConfig, PairResult
-from models.trading import TradingOrder, TradingSignal, TradingConfig, PairPosition
+from models import PairSelectionConfig, TradingConfig, TradingOrder, TradingSignal, Pair, PairPosition
 from utils.validation_utils import ValidationUtils as VUtils
 
 logger = logging.getLogger(__name__)
@@ -21,27 +20,21 @@ class BacktestEngine:
     Class used to backtest pair trading strategy
     """
 
-    def __init__(self, tickers: list[str], start_date: datetime, end_date: datetime, starting_capital: float,
-                 allocation_per_pair_pct: float = 0.1):
+    def __init__(self, tickers: list[str], start_date: datetime, end_date: datetime, starting_capital: float):
         """
         Constructor
         :param tickers: The tickers to trade
         :param start_date: The start date for the backtest (and the data)
         :param end_date: The end date for the backtest (and the data)
         :param starting_capital: The starting capital
-        :param allocation_per_pair_pct: The % to allocate for each pair
         """
         self.data: pd.DataFrame = DataFetcher.fetch(tickers, start_date, end_date)
         self.portfolio = Portfolio(starting_capital)
         self.pending_orders: list[TradingOrder] = []
-        self.allocation_per_pair_pct = allocation_per_pair_pct
         self._started = False
 
         # Make sure the given params are valid
-        VUtils.require_positive("allocation_per_pair_pct", allocation_per_pair_pct)
         VUtils.require_positive("starting_capital", starting_capital)
-        if allocation_per_pair_pct < 0 or allocation_per_pair_pct > 1:
-            raise ValueError("allocation_per_pair_pct must be between 0 and 1")
 
     def start(self, pair_config: PairSelectionConfig, trading_config: TradingConfig, formation_window: int = 252,
               trading_window: int = 20) -> None:
@@ -58,10 +51,6 @@ class BacktestEngine:
         # No duplicate execution
         if self._started:
             raise RuntimeError("Backtest already started")
-
-        # Valid parameters
-        VUtils.require_positive("trading_window", trading_window)
-        VUtils.require_positive("formation_window", formation_window)
 
         self._started = True
 
@@ -90,7 +79,7 @@ class BacktestEngine:
 
             # Generate pairs for this session
             formation_data = self.data[self.data.index.get_level_values("Date").isin(formation_dates)]
-            pairs: list[PairResult] = PairEngine.select_pairs(data=formation_data, config=pair_config)
+            pairs: list[Pair] = PairEngine.select_pairs(data=formation_data, config=pair_config)
             pairs = PairEngine.rank_pairs(pairs=pairs, top_n=trading_config.pairs_top_n)
 
             # Go through each trading dates
@@ -134,12 +123,12 @@ class BacktestEngine:
 
                 # Check for entries across selected pairs
                 for pair in pairs:
+                    # Don't trade more than what is allowed
+                    if len(self.portfolio.open_positions) >= trading_config.max_position:
+                        break
+
                     # Don't trade a ticker more than once
                     if self.portfolio.has_position(pair.ticker_x) or self.portfolio.has_position(pair.ticker_y):
-                        continue
-
-                    # Don't trade too much
-                    if len(self.portfolio.open_positions) >= trading_config.max_position:
                         continue
 
                     try:
@@ -192,7 +181,7 @@ class BacktestEngine:
         # Iterate through each order
         for order in orders:
             # Get the pair's current info
-            pair: PairResult = order.pair
+            pair: Pair = order.pair
             price_y: float = prices[pair.ticker_y]
             price_x: float = prices[pair.ticker_x]
 
