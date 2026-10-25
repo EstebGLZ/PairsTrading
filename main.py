@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        format="%(asctime)s | %(levelname)-7s | %(name)-22s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
 
 
@@ -28,8 +29,6 @@ def main() -> None:
 
     engine.start(pair_config=config.get_pair_selection_config(),
                  trading_config=config.get_trading_config())
-
-    logger.info(engine.portfolio)
 
     stats: Statistics = Statistics(portfolio=engine.portfolio, periods_per_year=252, annual_risk_free_rate=0.0)
     stats.summary()

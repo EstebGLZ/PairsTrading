@@ -68,7 +68,10 @@ class DataFetcher:
 
         # Cache
         if cache and not force_refresh and data_path.exists():
-            logger.info("Loading market data from cache: %s", cache_key)
+            # Logging
+            start_str = start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)
+            end_str = end_date.strftime("%Y-%m-%d") if hasattr(end_date, "strftime") else str(end_date)
+            logger.info("Loading market data from cache (%d tickers, %s -> %s)", len(tickers), start_str, end_str)
 
             data = pd.read_parquet(data_path)
             cls._validate_data(data, tickers, start_date, end_date)

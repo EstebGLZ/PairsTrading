@@ -32,21 +32,31 @@ class TradingEngine:
 
         if zscore >= config.entry_zscore:  # Short spread
             sl_zscore: float = config.stop_zscore_delta + zscore
-            return TradingOrder(pair=pair,
-                                signal=TradingSignal.SHORT_SPREAD,
-                                signal_date=date,
-                                zscore=zscore,
-                                stop_loss_zscore=sl_zscore,
-                                time_exit=time_exit)
+            order = TradingOrder(pair=pair,
+                                 signal=TradingSignal.SHORT_SPREAD,
+                                 signal_date=date,
+                                 zscore=zscore,
+                                 stop_loss_zscore=sl_zscore,
+                                 time_exit=time_exit)
+            # Logging
+            logger.debug(
+                f"Entry signal SHORT_SPREAD for {pair.ticker_y}/{pair.ticker_x} (Z={zscore:+.2f})"
+            )
+            return order
 
         if zscore <= -config.entry_zscore:  # Long spread
             sl_zscore: float = zscore - config.stop_zscore_delta
-            return TradingOrder(pair=pair,
-                                signal=TradingSignal.LONG_SPREAD,
-                                signal_date=date,
-                                zscore=zscore,
-                                stop_loss_zscore=sl_zscore,
-                                time_exit=time_exit)
+            order = TradingOrder(pair=pair,
+                                 signal=TradingSignal.LONG_SPREAD,
+                                 signal_date=date,
+                                 zscore=zscore,
+                                 stop_loss_zscore=sl_zscore,
+                                 time_exit=time_exit)
+            # Logging
+            logger.debug(
+                f"Entry signal LONG_SPREAD for {pair.ticker_y}/{pair.ticker_x} (Z={zscore:+.2f})"
+            )
+            return order
 
         return None
 

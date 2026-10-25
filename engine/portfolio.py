@@ -95,6 +95,15 @@ class Portfolio:
         self.open_positions[position.pair] = position
         self.available_cash -= total_entry_outflow
         self.reserved_capital += position.entry_gross_exposure
+
+        # Logging
+        logger.info(
+            f"🟢 OPEN  | {entry_date.strftime('%Y-%m-%d')} | "
+            f"{position.pair_model.ticker_y}/{position.pair_model.ticker_x} | "
+            f"{position.direction.name:<12} | Z: {position.entry_zscore:+.2f} | "
+            f"Alloc: ${position.entry_gross_exposure:,.2f} | "
+            f"Cash: ${self.available_cash:,.2f}"
+        )
         return True
 
     def close_position(self, pair: Pair, exit_date: datetime, exit_zscore: float | None,
@@ -162,6 +171,19 @@ class Portfolio:
                 - borrow_fees
         )
 
+        # Logging
+        tag = "🛑 STOP " if (
+                exit_zscore is not None and abs(exit_zscore) >= abs(position.stop_loss_zscore)) else "🔴 CLOSE"
+        z_str = f"{exit_zscore:+.2f}" if exit_zscore is not None else "TIME"
+        days_str = f"{position.holding_duration.days}d" if position.holding_duration else "0d"
+
+        logger.info(
+            f"{tag} | {exit_date.strftime('%Y-%m-%d')} | "
+            f"{position.pair_model.ticker_y}/{position.pair_model.ticker_x} | "
+            f"Exit Z: {z_str} | Held: {days_str} | "
+            f"Net PnL: {position.realized_pnl:+,.2f}$ ({position.realized_return:+.2%}) | "
+            f"Fees: ${position.total_cost:.2f}"
+        )
         return True
 
     def close_all(self, exit_date: datetime, prices: dict[str, float]) -> None:
@@ -171,6 +193,12 @@ class Portfolio:
         :param prices: The prices at which the position was closed
         :raises ValueError: If one of the given number is not valid
         """
+        # Logging
+        if self.open_positions:
+            logger.info(
+                f"Closing all remaining positions ({len(self.open_positions)}) as of {exit_date.strftime('%Y-%m-%d')}."
+            )
+
         for position in list(self.open_positions.values()):
             self.close_position(
                 pair=position.pair_model,

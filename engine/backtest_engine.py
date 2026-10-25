@@ -40,8 +40,6 @@ class BacktestEngine:
         :param trading_config: The trading configuration
         :raises: ValueError in case of invalid number or trading signals in the backtest
         """
-        logger.info("Starting backtest...")
-
         # No duplicate execution
         if self._started:
             raise RuntimeError("Backtest already started")
@@ -58,6 +56,17 @@ class BacktestEngine:
 
         if len(dates) <= self.config.formation_window:
             raise ValueError("Not enough sessions for formation and at least one trading session.")
+
+        # Logging
+        tickers_count = len(self.data.index.get_level_values("Ticker").unique())
+        logger.info("=" * 65)
+        logger.info("                  BACKTEST INITIALIZATION")
+        logger.info("=" * 65)
+        logger.info(f"Universe: {tickers_count} tickers | Horizon: {dates[0].strftime('%Y-%m-%d')} -> {dates[-1].strftime('%Y-%m-%d')}")
+        logger.info(f"Capital: ${self.config.starting_capital:,.2f} | Alloc/Pair: {trading_config.allocation_per_pair:.1%} | Max Pos: {trading_config.max_position}")
+        logger.info(f"Strategy: Entry Z={trading_config.entry_zscore:.2f} | Exit Z={trading_config.exit_zscore:.2f} | Stop Delta={trading_config.stop_zscore_delta:.2f} | Top Pairs={trading_config.pairs_top_n}")
+        logger.info(f"Friction: Comm={self.config.commission_pct * 10_000:.1f} bps | Slip={self.config.slippage_pct * 10_000:.1f} bps | Borrow={self.config.borrow_rate:.2%} / yr")
+        logger.info("=" * 65)
 
         close_matrix = self.data[Column.CLOSE].unstack(level="Ticker")
         open_matrix = self.data[Column.OPEN].unstack(level="Ticker")
@@ -76,6 +85,19 @@ class BacktestEngine:
             pairs: list[Pair] = PairEngine.select_pairs(data=formation_data, config=pair_config)
             pairs = PairEngine.rank_pairs(pairs=pairs, top_n=trading_config.pairs_top_n)
 
+            # Logging
+            total_windows = (len(dates) - self.config.formation_window) // self.config.trading_window + 1
+            window_idx = i // self.config.trading_window + 1
+            pairs_str = ", ".join(f"{p.ticker_y}/{p.ticker_x}" for p in pairs)
+            current_equity = next(reversed(self.portfolio.equity.values()), self.portfolio.starting_capital)
+
+            logger.info(
+                f"[Window {window_idx:03d}/{total_windows:03d}] "
+                f"{trading_dates[0].strftime('%Y-%m-%d')} -> {trading_dates[-1].strftime('%Y-%m-%d')} | "
+                f"Equity: ${current_equity:,.2f} | Open: {len(self.portfolio.open_positions)} | "
+                f"Pairs: {pairs_str}"
+            )
+            
             # Go through each trading dates
             for j, date in enumerate(trading_dates):
                 # Get today's prices
@@ -112,7 +134,7 @@ class BacktestEngine:
                             self.pending_orders.append(order)
 
                     except Exception:
-                        logging.exception("Could not process pair %s/%s", *position.pair)
+                        logger.exception("Could not process pair %s/%s", *position.pair)
                         raise
 
                 # Check for entries across selected pairs
@@ -144,15 +166,16 @@ class BacktestEngine:
                             self.pending_orders.append(order)
 
                     except Exception:
-                        logging.exception("Could not process pair %s/%s", *pair.pair)
+                        logger.exception("Could not process pair %s/%s", *pair.pair)
                         raise
 
                 # End of day equity update
                 self.portfolio.update_equity(date, closing_prices)
 
         # Backtest done
-        logger.info("Finished backtest")
-        logger.info(f"Orders that have not been executed: {len(self.pending_orders)}")
+        # Logging
+        logger.info("Finished backtest successfully.")
+        logger.info(f"Unexecuted pending orders: {len(self.pending_orders)}")
         self.pending_orders.clear()
 
     def _execute_pending_orders(self, date: datetime, prices: dict[str, float], config: TradingConfig) -> None:
@@ -191,7 +214,7 @@ class BacktestEngine:
 
                     # No negative capital
                     if capital_to_allocate <= 0:
-                        logger.debug("Pas assez de liquidités disponibles pour ouvrir la position.")
+                        logger.debug("Insufficient liquidity to open position.")
                         continue
 
                     quantity_y, quantity_x = TradingEngine.calculate_position_sizing(
@@ -211,7 +234,7 @@ class BacktestEngine:
                         entry_price_x=price_x,
                     )
                 except ValueError as e:
-                    logging.exception(f"Error when opening position: {e}")
+                    logger.exception(f"Error when opening position: {e}")
 
             elif order.signal == TradingSignal.EXIT:  # Close the position
                 self.portfolio.close_position(

@@ -44,6 +44,10 @@ class Statistics:
         """Calculate stats and log summary."""
         self._calculate_trades_stats()
         self._calculate_equity_stats()
+
+        # Logging
+        for warning in self._warnings:
+            logger.warning(warning)
         logger.info(f"\n\n{self._report}")
         return self._report
 
