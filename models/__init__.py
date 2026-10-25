@@ -1,4 +1,4 @@
-from models.configuration import PairSelectionConfig, TradingConfig
+from models.configuration import PairSelectionConfig, TradingConfig, BacktestConfig
 from models.order import TradingOrder, TradingSignal
 from models.pair import Pair
 from models.position import PairPosition
@@ -12,4 +12,5 @@ __all__ = [
     "Pair",
     "PairPosition",
     "Report",
+    "BacktestConfig"
 ]

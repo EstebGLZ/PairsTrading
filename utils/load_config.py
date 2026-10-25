@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 
-from models import PairSelectionConfig, TradingConfig
+from models import PairSelectionConfig, TradingConfig, BacktestConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,7 @@ class Configuration:
     END_DATE_KEY: str = "end"
     PAIR_SELECTION_CONFIG_KEY: str = "pair_selection"
     TRADING_CONFIG_KEY: str = "trading_config"
+    BACKTEST_CONFIG_KEY: str = "backtest_config"
 
     def __init__(self):
         self.config = None
@@ -43,6 +44,10 @@ class Configuration:
     def get_trading_config(self) -> TradingConfig:
         self._check_config("get_trading_config")
         return TradingConfig(**self.config[self.TRADING_CONFIG_KEY])
+
+    def get_backtest_config(self) -> BacktestConfig:
+        self._check_config("get_backtest_config")
+        return BacktestConfig(**self.config[self.BACKTEST_CONFIG_KEY])
 
     def _check_config(self, method):
         if self.config is None:

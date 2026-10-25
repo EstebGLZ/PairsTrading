@@ -8,6 +8,8 @@ class Report:
     final_equity: float = float('nan')
     total_pnl: float = float('nan')
     total_return: float = float('nan')
+    total_cost: float = float('nan')
+    sharpe_ratio: float = float('nan')
     annualized_return: float = float('nan')
     annualized_volatility: float = float('nan')
     sharpe_ratio: float = float('nan')
@@ -26,6 +28,7 @@ class Report:
                 f"Final Equity: {self.final_equity:.4f}\n"
                 f"Total PnL: {self.total_pnl:.4f}\n"
                 f"Total Return: {self.total_return:.4%}\n"
+                f"Total Cost: {self.total_cost:.4f}\n"
                 f"Annualized Return: {self.annualized_return:.4%}\n"
                 f"Annualized Volatility: {self.annualized_volatility:.4%}\n"
                 f"Sharpe Ratio: {self.sharpe_ratio:.4f}\n"

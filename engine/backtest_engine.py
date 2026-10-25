@@ -9,8 +9,7 @@ from data.fetcher import DataFetcher
 from engine.pair_engine import PairEngine
 from engine.portfolio import Portfolio
 from engine.trading_engine import TradingEngine
-from models import PairSelectionConfig, TradingConfig, TradingOrder, TradingSignal, Pair, PairPosition
-from utils.validation_utils import ValidationUtils as VUtils
+from models import PairSelectionConfig, TradingConfig, TradingOrder, TradingSignal, Pair, PairPosition, BacktestConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,30 +19,25 @@ class BacktestEngine:
     Class used to backtest pair trading strategy
     """
 
-    def __init__(self, tickers: list[str], start_date: datetime, end_date: datetime, starting_capital: float):
+    def __init__(self, stocks: list[str], start_date: datetime, end_date: datetime, config: BacktestConfig):
         """
         Constructor
-        :param tickers: The tickers to trade
-        :param start_date: The start date for the backtest (and the data)
-        :param end_date: The end date for the backtest (and the data)
-        :param starting_capital: The starting capital
+        :param stocks: The stocks to trade
+        :param start_date: When the backtest starts
+        :param end_date: When the backtest ends
+        :param config: The backtest configuration
         """
-        self.data: pd.DataFrame = DataFetcher.fetch(tickers, start_date, end_date)
-        self.portfolio = Portfolio(starting_capital)
+        self.data: pd.DataFrame = DataFetcher.fetch(stocks, start_date, end_date)
+        self.portfolio: Portfolio = Portfolio(config)
         self.pending_orders: list[TradingOrder] = []
-        self._started = False
+        self._started: bool = False
+        self.config: BacktestConfig = config
 
-        # Make sure the given params are valid
-        VUtils.require_positive("starting_capital", starting_capital)
-
-    def start(self, pair_config: PairSelectionConfig, trading_config: TradingConfig, formation_window: int = 252,
-              trading_window: int = 20) -> None:
+    def start(self, pair_config: PairSelectionConfig, trading_config: TradingConfig) -> None:
         """
         Start the backtest
         :param pair_config: The configuration used to select the pairs
         :param trading_config: The trading configuration
-        :param formation_window: The window used to select the pairs
-        :param trading_window: The window used to trade the selected pairs
         :raises: ValueError in case of invalid number or trading signals in the backtest
         """
         logger.info("Starting backtest...")
@@ -62,19 +56,19 @@ class BacktestEngine:
             .sort_values()
         )
 
-        if len(dates) <= formation_window:
+        if len(dates) <= self.config.formation_window:
             raise ValueError("Not enough sessions for formation and at least one trading session.")
 
         close_matrix = self.data[Column.CLOSE].unstack(level="Ticker")
         open_matrix = self.data[Column.OPEN].unstack(level="Ticker")
 
         # Handle the formation windows
-        for i in range(0, len(dates) - formation_window, trading_window):
+        for i in range(0, len(dates) - self.config.formation_window, self.config.trading_window):
             # Get the current trading dates
-            formation_dates = dates[i:i + formation_window]
+            formation_dates = dates[i:i + self.config.formation_window]
             trading_dates = dates[
-                i + formation_window:
-                i + formation_window + trading_window
+                i + self.config.formation_window:
+                i + self.config.formation_window + self.config.trading_window
             ]
 
             # Generate pairs for this session
@@ -90,7 +84,7 @@ class BacktestEngine:
                 # Execute orders
                 self._execute_pending_orders(date, opening_prices, trading_config)
 
-                current_idx = i + formation_window + j
+                current_idx = i + self.config.formation_window + j
                 start_idx = max(0, current_idx - trading_config.zscore_window + 1)
                 end_idx = current_idx + 1
                 hist_close = close_matrix.iloc[start_idx:end_idx]

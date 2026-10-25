@@ -220,5 +220,13 @@
     "max_position": 10,
     "pairs_top_n": 5,
     "allocation_per_pair": 0.2
+  },
+  "backtest_config": {
+    "formation_window": 252,
+    "trading_window": 20,
+    "starting_capital": 10000,
+    "commission_pct": 0.0005,
+    "slippage_pct": 0.0003,
+    "borrow_rate": 0.01
   }
 }

@@ -70,3 +70,29 @@ class TradingConfig:
         # Check allocation coherence
         if not (0 < self.allocation_per_pair <= 1.0):
             raise ValueError("Expected 0 < allocation_per_pair <= 1.0.")
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestConfig:
+    formation_window: int = 252
+    trading_window: int = 20
+    starting_capital: int = 10_000
+    commission_pct: float = 0.0005
+    slippage_pct: float = 0.0005
+    borrow_rate: float = 0.01
+
+    def __post_init__(self) -> None:
+        for name, value in (
+                ("formation_window", self.formation_window),
+                ("trading_window", self.trading_window),
+                ("starting_capital", self.starting_capital)):
+            VUtils.require_positive(name, value)
+
+        for name, value in (
+                ("commission_pct", self.commission_pct),
+                ("slippage_pct", self.slippage_pct),
+                ("borrow_rate", self.borrow_rate)):
+            VUtils.require_positive(name, value, strict=False)
+
+        if self.formation_window <= self.trading_window:
+            raise ValueError("formation_window must be greater than trading_window.")

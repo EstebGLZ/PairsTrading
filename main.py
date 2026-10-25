@@ -21,15 +21,14 @@ def main() -> None:
     config = Configuration()
     config.load_config("config.json")
 
-    engine: BacktestEngine = BacktestEngine(tickers=config.get_stocks(),
+    engine: BacktestEngine = BacktestEngine(stocks=config.get_stocks(),
                                             start_date=config.get_start_date(),
                                             end_date=config.get_end_date(),
-                                            starting_capital=10_000)
+                                            config=config.get_backtest_config())
 
     engine.start(pair_config=config.get_pair_selection_config(),
-                 trading_config=config.get_trading_config(),
-                 trading_window=20,
-                 formation_window=252)
+                 trading_config=config.get_trading_config())
+
     logger.info(engine.portfolio)
 
     stats: Statistics = Statistics(portfolio=engine.portfolio, periods_per_year=252, annual_risk_free_rate=0.0)

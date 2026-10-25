@@ -131,6 +131,7 @@ class Statistics:
         durations = [(pos.exit_date - pos.entry_date).days for pos in self._trades if pos.exit_date and pos.entry_date]
         avg_holding_duration = float(np.mean(durations)) if durations else float('nan')
         expectancy = (winrate * mean_profit + lossrate * mean_loss) if not math.isnan(winrate) else float('nan')
+        total_cost = sum([trade.total_cost for trade in self._trades])
 
         # Populate report object
         self._report.winrate = winrate
@@ -138,6 +139,7 @@ class Statistics:
         self._report.payoff_ratio = payoff_ratio
         self._report.avg_holding_duration = avg_holding_duration
         self._report.expectancy = expectancy
+        self._report.total_cost = total_cost
 
     def plot(self) -> Figure:
         """Generate Matplotlib figure with equity and drawdown curves."""

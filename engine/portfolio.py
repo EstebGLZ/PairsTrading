@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from models import TradingOrder, Pair, PairPosition
+from models import TradingOrder, Pair, PairPosition, BacktestConfig
 from utils.validation_utils import ValidationUtils as VUtils
 
 logger = logging.getLogger(__name__)
@@ -12,11 +12,12 @@ class Portfolio:
     Class representing a trading porfolio. It handles the position and capital
     """
 
-    def __init__(self, starting_capital: float = 10_000) -> None:
-        VUtils.require_positive("starting_capital", starting_capital)
-
-        self.starting_capital: float = starting_capital
-        self.available_cash: float = starting_capital
+    def __init__(self, config: BacktestConfig) -> None:
+        self.starting_capital: int = config.starting_capital
+        self.commission_pct: float = config.commission_pct
+        self.slippage_pct: float = config.slippage_pct
+        self.borrow_rate: float = config.borrow_rate
+        self.available_cash: float = self.starting_capital
         self.reserved_capital: float = 0.0
         self.open_positions: dict[tuple[str, str], PairPosition] = dict()
         self.closed_positions: list[PairPosition] = []
@@ -58,6 +59,11 @@ class Portfolio:
         :raises ValueError: If one of the given number is not valid
         """
 
+        # Make sure we don't already have a position
+        if self.get_position(*order.pair.pair):
+            logger.debug(f"Position rejected: position already opened.")
+            return False
+
         position: PairPosition = PairPosition(
             pair_model=order.pair,
             direction=order.signal,
@@ -72,22 +78,23 @@ class Portfolio:
             time_exit=order.time_exit
         )
 
-        # Make sure we don't already have a position
-        if self.get_position(*position.pair):
-            logger.debug(f"Position rejected: position already opened.")
-            return False
+        # Calculate the fees
+        entry_commission: float = position.entry_gross_exposure * self.commission_pct
+        entry_slippage: float = position.entry_gross_exposure * self.slippage_pct
+        total_entry_outflow: float = position.entry_gross_exposure + entry_commission + entry_slippage
 
         # Make sure we don't spend more than we have
-        if position.entry_gross_exposure > self.available_cash:
-            logger.debug(
-                f"Position rejected: insufficient balance {position.entry_gross_exposure} > {self.available_cash}")
+        if total_entry_outflow > self.available_cash:
+            logger.debug(f"Position rejected: insufficient cash {total_entry_outflow} > {self.available_cash}")
             return False
+
+        position.total_commission = entry_commission
+        position.total_slippage = entry_slippage
 
         # Open the position
         self.open_positions[position.pair] = position
-        self.available_cash -= position.entry_gross_exposure
+        self.available_cash -= total_entry_outflow
         self.reserved_capital += position.entry_gross_exposure
-
         return True
 
     def close_position(self, pair: Pair, exit_date: datetime, exit_zscore: float | None,
@@ -102,10 +109,7 @@ class Portfolio:
         :param exit_price_x: X asset's exit price
         :return: Whether the position was closed or not
         """
-        # Retrieve the position
         position: PairPosition | None = self.get_position(*pair.pair)
-
-        # Make sure we have an opened position
         if position is None or not position.is_open:
             logger.debug(f"Position close rejected: position either not found or already closed.")
             return False
@@ -116,7 +120,7 @@ class Portfolio:
 
         for name, value in (("exit_price_x", exit_price_x), ("exit_price_y", exit_price_y)):
             VUtils.require_positive(name, value)
-            
+
         # Close the position
         closed: bool = position.close(
             exit_date=exit_date,
@@ -128,11 +132,35 @@ class Portfolio:
             logger.error(f"Could not close position: {position}")
             return False
 
+        # Calculate exit fees
+        exit_gross_exposure: float = abs(position.quantity_y) * exit_price_y + abs(position.quantity_x) * exit_price_x
+        exit_commission: float = exit_gross_exposure * self.commission_pct
+        exit_slippage: float = exit_gross_exposure * self.slippage_pct
+
+        # Calculate borrow fees
+        short_exposure = (
+            abs(position.quantity_y) * position.entry_price_y
+            if position.quantity_y < 0
+            else abs(position.quantity_x) * position.entry_price_x
+        )
+        duration_days = position.holding_duration.days if position.holding_duration else 0
+        borrow_fees: float = short_exposure * self.borrow_rate * (duration_days / 360.0)
+
+        position.total_commission += exit_commission
+        position.total_slippage += exit_slippage
+        position.borrow_fees = borrow_fees
+
         # Update portfolio
         self.open_positions.pop(position.pair)
         self.closed_positions.append(position)
-        self.available_cash += position.entry_gross_exposure + position.realized_pnl
         self.reserved_capital -= position.entry_gross_exposure
+        self.available_cash += (
+                position.entry_gross_exposure
+                + position.gross_pnl
+                - exit_commission
+                - exit_slippage
+                - borrow_fees
+        )
 
         return True
 
