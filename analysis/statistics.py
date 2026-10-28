@@ -145,14 +145,38 @@ class Statistics:
         self._report.expectancy = expectancy
         self._report.total_cost = total_cost
 
+    def _calculate_annual_returns(self) -> dict[str, float]:
+        """Compute calendar year returns
+        :return dict[str, float]: A dict with the year as a key and the year's return as a percentage
+        """
+        if self._series is None:
+            return {}
+
+        grouped = self._series.groupby(self._series.index.year)
+        annual_returns: dict[str, float] = {}
+        prev_equity = self._starting_capital
+        for year, group in grouped:
+            last_equity = group["equity"].iloc[-1]
+            ret = (last_equity - prev_equity) / prev_equity
+            # Avoid plotting meaningless bar
+            if len(group) > 5 or ret != 0.0:
+                annual_returns[str(year)] = ret
+            prev_equity = last_equity
+
+        return annual_returns
+
     def plot(self) -> Figure:
         """Generate Matplotlib figure with equity and drawdown curves."""
         if self._series is None:
             self._calculate_equity_stats()
 
-        figure = Figure(figsize=(11, 7), layout="constrained")
+        figure = Figure(figsize=(11, 10), layout="constrained")
         FigureCanvasAgg(figure)
-        equity_ax, drawdown_ax = figure.subplots(2, 1, sharex=True, height_ratios=[2, 1])
+
+        gs = figure.add_gridspec(3, 1, height_ratios=[2.2, 1.2, 1.4])
+        equity_ax = figure.add_subplot(gs[0, 0])
+        drawdown_ax = figure.add_subplot(gs[1, 0], sharex=equity_ax)
+        annual_ax = figure.add_subplot(gs[2, 0])
 
         # Equity plot
         equity_ax.plot(self._series.index, self._series["equity"], color="#2563eb", label="Daily equity")
@@ -168,8 +192,43 @@ class Statistics:
         drawdown_ax.set(ylabel="Drawdown", xlabel="Trading date")
         drawdown_ax.grid(alpha=0.2)
 
-        figure.supxlabel("Based on recorded equity; includes open-position valuation. No additional costs applied.",
+        figure.supxlabel("Based on recorded equity; includes open-position valuation.",
                          fontsize=9)
+
+        annual_returns = self._calculate_annual_returns()
+        if annual_returns:
+            years = list(annual_returns.keys())
+            returns = list(annual_returns.values())
+
+            # Vert (#16a34a) si >= 0, Rouge (#dc2626) si < 0
+            colors = ["#16a34a" if r >= 0 else "#dc2626" for r in returns]
+
+            bars = annual_ax.bar(years, returns, color=colors, width=0.55, edgecolor="black", linewidth=0.5)
+            annual_ax.axhline(0, color="#64748b", linewidth=0.8, linestyle="--")
+            annual_ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+            annual_ax.set_ylabel("Annual return")
+            annual_ax.set_title("Annual returns breakdown", fontsize=11, fontweight="bold")
+            annual_ax.grid(axis="y", alpha=0.2)
+            for bar, r in zip(bars, returns):
+                y_val = bar.get_height()
+                offset = 0.002 if y_val >= 0 else -0.004
+                va = "bottom" if y_val >= 0 else "top"
+                text_color = "#15803d" if y_val >= 0 else "#b91c1c"
+
+                annual_ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    y_val + offset,
+                    f"{r * 100:+.2f}%",
+                    ha="center",
+                    va=va,
+                    fontsize=9,
+                    fontweight="bold",
+                    color=text_color
+                )
+
+            y_min = min(returns) if returns else 0
+            y_max = max(returns) if returns else 0
+            annual_ax.set_ylim(min(y_min * 1.35, -0.02), max(y_max * 1.35, 0.02))
         return figure
 
     def export(self, directory: str | Path) -> Path:
@@ -178,13 +237,38 @@ class Statistics:
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=False)
 
-        # Export CSV
+        # Export equity evolution
         if self._series is not None:
             self._series.to_csv(directory / "equity.csv", index_label="Date")
 
+        # Export positions
+        if self._trades:
+            trades_records = [
+                {
+                    "pair": f"{pos.pair[0]}/{pos.pair[1]}",
+                    "direction": pos.direction.name,
+                    "entry_date": pos.entry_date.strftime("%Y-%m-%d"),
+                    "exit_date": pos.exit_date.strftime("%Y-%m-%d"),
+                    "duration_days": pos.holding_duration,
+                    "entry_zscore": round(pos.entry_zscore, 3),
+                    "exit_zscore": round(pos.exit_zscore, 3) if pos.exit_zscore is not None else None,
+                    "entry_exposure": round(pos.entry_gross_exposure, 2),
+                    "gross_pnl": round(pos.gross_pnl, 2),
+                    "commission": round(pos.total_commission, 2),
+                    "slippage": round(pos.total_slippage, 2),
+                    "borrow_fees": round(pos.borrow_fees, 2),
+                    "total_cost": round(pos.total_cost, 2),
+                    "net_pnl": round(pos.realized_pnl, 2),
+                    "net_return_pct": round(pos.realized_return * 100, 3),
+                }
+                for pos in self._trades
+            ]
+            pd.DataFrame(trades_records).to_csv(directory / "trades.csv", index=False)
+
         # Export Figure
         figure = self.plot()
-        figure.savefig(directory / "performance.png", dpi=150)
+        figure.savefig(directory / "performance.png", dpi=200)
+        figure.savefig(directory / "performance.svg")
         figure.clear()
 
         # Export JSON summary
