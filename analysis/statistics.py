@@ -39,6 +39,10 @@ class Statistics:
         self._report.n_observations = len(self._equity)
         self._report.starting_capital = self._starting_capital
         self._report.final_equity = next(reversed(self._equity.values()))
+        self._report.n_trades = len(self._trades)
+        trade_return: list = [pos.realized_return for pos in self._trades]
+        self._report.best_trade = max(trade_return) if len(trade_return) > 0 else float("nan")
+        self._report.worst_trade = min(trade_return) if len(trade_return) > 0 else float("nan")
 
     def summary(self) -> Report:
         """Calculate stats and log summary."""

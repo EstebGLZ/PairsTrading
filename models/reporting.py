@@ -4,6 +4,9 @@ from dataclasses import dataclass
 @dataclass
 class Report:
     n_observations: float = float('nan')
+    n_trades: float = float('nan')
+    best_trade: float = float('nan')
+    worst_trade: float = float('nan')
     starting_capital: float = float('nan')
     final_equity: float = float('nan')
     total_pnl: float = float('nan')
@@ -12,7 +15,6 @@ class Report:
     sharpe_ratio: float = float('nan')
     annualized_return: float = float('nan')
     annualized_volatility: float = float('nan')
-    sharpe_ratio: float = float('nan')
     max_drawdown: float = float('nan')
     calmar_ratio: float = float('nan')
     winrate: float = float('nan')
@@ -24,6 +26,7 @@ class Report:
     def __str__(self) -> str:
         return (f"{'=' * 3} Report {'=' * 3}\n"
                 f"Number of observations: {self.n_observations}\n"
+                f"Key trades: best {self.best_trade:.2%} | worst: {self.worst_trade:.2%} | total trades: {self.n_trades}\n"
                 f"Starting Capital: {self.starting_capital:.4f}\n"
                 f"Final Equity: {self.final_equity:.4f}\n"
                 f"Total PnL: {self.total_pnl:.4f}\n"
