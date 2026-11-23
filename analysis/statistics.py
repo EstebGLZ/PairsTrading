@@ -28,7 +28,6 @@ class Statistics:
         self._equity: dict[datetime, float] = portfolio.equity
         self._starting_capital: float = portfolio.starting_capital
         self._trades: list[PairPosition] = portfolio.closed_positions
-        self._ongoing_trades: dict[tuple[str, str], PairPosition] = portfolio.open_positions
         self._periods_per_year: int = periods_per_year
         self._annual_risk_free_rate: float = annual_risk_free_rate
         self._warnings: list[str] = []

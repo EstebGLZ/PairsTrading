@@ -1,0 +1,28 @@
+{
+  "start_date": "2011-01-03T00:00:00",
+  "end_date": "2020-12-30T00:00:00",
+  "periods_per_year": 252,
+  "annual_risk_free_rate": 0.0,
+  "metrics": {
+    "n_observations": 2516,
+    "n_trades": 555,
+    "best_trade": 0.12537315242081346,
+    "worst_trade": -0.10642581531257174,
+    "starting_capital": 10000.0,
+    "final_equity": 10605.038826103872,
+    "total_pnl": 605.0388261038715,
+    "total_return": 0.060503882610387194,
+    "total_cost": 0.0,
+    "sharpe_ratio": 0.22104828437600937,
+    "annualized_return": 0.005901098190155421,
+    "annualized_volatility": 0.028445196357806467,
+    "max_drawdown": -0.05374822836840687,
+    "calmar_ratio": 0.10979149209732982,
+    "winrate": 0.4594594594594595,
+    "profit_factor": 1.1053091346929427,
+    "payoff_ratio": 1.30036368787405,
+    "avg_holding_duration": 13.776576576576577,
+    "expectancy": 1.113424425258085
+  },
+  "warnings": []
+}

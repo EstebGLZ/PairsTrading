@@ -147,11 +147,12 @@ class Portfolio:
         exit_slippage: float = exit_gross_exposure * self.slippage_pct
 
         # Calculate borrow fees
-        short_exposure = (
-            abs(position.quantity_y) * position.entry_price_y
-            if position.quantity_y < 0
-            else abs(position.quantity_x) * position.entry_price_x
-        )
+        short_exposure = 0.0
+        if position.quantity_y < 0:
+            short_exposure += abs(position.quantity_y) * position.entry_price_y
+        if position.quantity_x < 0:
+            short_exposure += abs(position.quantity_x) * position.entry_price_x
+
         duration_days = position.holding_duration.days if position.holding_duration else 0
         borrow_fees: float = short_exposure * self.borrow_rate * (duration_days / 360.0)
 
@@ -185,28 +186,6 @@ class Portfolio:
             f"Fees: ${position.total_cost:.2f}"
         )
         return True
-
-    def close_all(self, exit_date: datetime, prices: dict[str, float]) -> None:
-        """
-        Close every position
-        :param exit_date: The exit date
-        :param prices: The prices at which the position was closed
-        :raises ValueError: If one of the given number is not valid
-        """
-        # Logging
-        if self.open_positions:
-            logger.info(
-                f"Closing all remaining positions ({len(self.open_positions)}) as of {exit_date.strftime('%Y-%m-%d')}."
-            )
-
-        for position in list(self.open_positions.values()):
-            self.close_position(
-                pair=position.pair_model,
-                exit_date=exit_date,
-                exit_zscore=None,
-                exit_price_y=prices[position.pair_model.ticker_y],
-                exit_price_x=prices[position.pair_model.ticker_x],
-            )
 
     def update_equity(self, date: datetime, prices: dict[str, float], ) -> None:
         """

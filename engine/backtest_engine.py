@@ -62,10 +62,14 @@ class BacktestEngine:
         logger.info("=" * 65)
         logger.info("                  BACKTEST INITIALIZATION")
         logger.info("=" * 65)
-        logger.info(f"Universe: {tickers_count} tickers | Horizon: {dates[0].strftime('%Y-%m-%d')} -> {dates[-1].strftime('%Y-%m-%d')}")
-        logger.info(f"Capital: ${self.config.starting_capital:,.2f} | Alloc/Pair: {trading_config.allocation_per_pair:.1%} | Max Pos: {trading_config.max_position}")
-        logger.info(f"Strategy: Entry Z={trading_config.entry_zscore:.2f} | Exit Z={trading_config.exit_zscore:.2f} | Stop Delta={trading_config.stop_zscore_delta:.2f} | Top Pairs={trading_config.pairs_top_n}")
-        logger.info(f"Friction: Comm={self.config.commission_pct * 10_000:.1f} bps | Slip={self.config.slippage_pct * 10_000:.1f} bps | Borrow={self.config.borrow_rate:.2%} / yr")
+        logger.info(
+            f"Universe: {tickers_count} tickers | Horizon: {dates[0].strftime('%Y-%m-%d')} -> {dates[-1].strftime('%Y-%m-%d')}")
+        logger.info(
+            f"Capital: ${self.config.starting_capital:,.2f} | Alloc/Pair: {trading_config.allocation_per_pair:.1%} | Max Pos: {trading_config.max_position}")
+        logger.info(
+            f"Strategy: Entry Z={trading_config.entry_zscore:.2f} | Exit Z={trading_config.exit_zscore:.2f} | Stop Delta={trading_config.stop_zscore_delta:.2f} | Top Pairs={trading_config.pairs_top_n}")
+        logger.info(
+            f"Friction: Comm={self.config.commission_pct * 10_000:.1f} bps | Slip={self.config.slippage_pct * 10_000:.1f} bps | Borrow={self.config.borrow_rate:.2%} / yr")
         logger.info("=" * 65)
 
         close_matrix = self.data[Column.CLOSE].unstack(level="Ticker")
@@ -97,7 +101,7 @@ class BacktestEngine:
                 f"Equity: ${current_equity:,.2f} | Open: {len(self.portfolio.open_positions)} | "
                 f"Pairs: {pairs_str}"
             )
-            
+
             # Go through each trading dates
             for j, date in enumerate(trading_dates):
                 # Get today's prices
@@ -204,6 +208,9 @@ class BacktestEngine:
 
             # Open a position
             if order.signal in (TradingSignal.LONG_SPREAD, TradingSignal.SHORT_SPREAD):
+                # Don't open more position than allowed
+                if len(self.portfolio.open_positions) >= config.max_position:
+                    break
                 # Make sure we don't trade a ticker more than once
                 if self.portfolio.has_position(pair.ticker_x) or self.portfolio.has_position(pair.ticker_y):
                     continue

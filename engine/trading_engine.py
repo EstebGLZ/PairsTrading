@@ -213,14 +213,15 @@ class TradingEngine:
             prices_x=prices_x,
         )
 
-        rolling_std: float = float(np.std(spread))
+        rolling_std: float = float(np.std(spread, ddof=1))
+        rolling_mean: float = float(np.mean(spread))
 
-        if rolling_std < 1e-8:
+        if not np.isfinite(rolling_std) or rolling_std < 1e-8:
             rolling_std = pair.spread_std
 
         zscore: float = TradingEngine._calculate_zscore(
             spread=spread[-1],
-            mean=pair.spread_mean,
+            mean=rolling_mean,
             std=rolling_std,
         )
 
