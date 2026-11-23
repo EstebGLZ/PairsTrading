@@ -1,4 +1,4 @@
-# Pairs trading engine
+# Pairs Trading Engine
 
 ## Introduction
 
@@ -15,11 +15,12 @@ analytics and trade logs. Here is an example of the strategy's output:
 
 ---
 
-## The strategy
+## The Strategy
 
-In this chapter, we will dive into the strategy, from the pair selection process and entry process up to the exit.
+In this section, we dive into the strategy, from pair selection and signal generation to position sizing and trade
+exits.
 
-### Pair selection
+### Pair Selection
 
 In pairs trading, cointegration is often treated as the sole criterion for selecting pairs. However, across a large
 universe, this indicator alone shows clear limitations. Because it is purely
@@ -33,7 +34,7 @@ behavior:
    correlation matrix. This gives an $n \times n$ matrix (where $n$ is the
    stock universe size) in which all assets are equally weighted regardless of their individual volatility.
 
-2. **PCA Reduction**: Using Principal Component Analysis, we extract the top $k = 5$  market factors (eigenvectors) from
+2. **PCA Reduction**: Using Principal Component Analysis, we extract the top $k = 5$ market factors (eigenvectors) from
    the correlation matrix. This produces a $k \times n$ matrix
    capturing the primary market drivers and each asset's sensitivity to them.
 3. **OPTICS Clustering**: We transpose the PCA matrix to $n \times k$ and apply OPTICS density clustering to group
@@ -42,51 +43,56 @@ behavior:
    driven by similar reactions to market factors, while also reducing the search space
    from $\mathcal{O}(n^2)$ to intra-cluster combinations.
 4. **Cointegration Test (Engle-Granger)**: Within each cluster, we test every candidate pair in both directions on
-   log-prices. An Ordinary Least Squares (OLS)
+   log-prices and retain the direction with the lowest $p$-value. An Ordinary Least Squares (OLS)
    regression estimates the hedge ratio $\beta$ and the spread, followed by an Augmented Dickey-Fuller (ADF) test on
-   the residuals to confirm stationarity such as $p\text{-value} \le 0.05$.
+   the residuals to confirm stationarity with $p\text{-value} \le 0.05$.
 5. **Mean-Reverting Behavior**: To ensure a cointegrated pair reverts quickly and reliably enough to be traded
-   profitably, we compute 3 key indicators on the spread:
+   profitably, we compute three key indicators on the spread:
     - **Hurst Exponent $(H)$**: Indicates whether the spread is genuinely mean-reverting $(H < 0.5)$ rather than
       random-walking or trending $(H \ge 0.5)$. The closer $H$ is to $0$, the stronger the mean reversion.
-    - **Ornstein-Uhlenbeck Half-Life $(\tau_{1/2})$**: Estimates the expected time (in trading days) for the spread to
-      revert halfway back to its equilibrium (retained within $[1, 365]$ days). Beyond confirming the presence of a
+    - **Ornstein-Uhlenbeck Half-Life $(\tau_{1/2})$**: Estimates the expected time for the spread to
+      revert halfway back to its equilibrium (retained within $(1, 365)$ days). Beyond confirming the presence of a
       restoring force, this metric also defines our dynamic time-stop: if a position remains open
-      after $k \times \tau_{1/2}$ days $(k = 3)$, we assume the structural relationship has
+      after $m \times \tau_{1/2}$ days, we assume the structural relationship has
       broken down and close the trade.
     - **Mean-Crossing Frequency**: Acts as an empirical safeguard to ensure the spread actively oscillates around its
       equilibrium. It counts how many times per year the spread crosses its mean (requiring $\ge 12$ crossings/year),
       filtering out slow candidates that drift on one side of equilibrium.
-6. **Ranking**: To rank the pair candidates, we sort them by the greatest mean crossings, smallest half life and finally
-   the smallest p-value. This sorting gives us on top the pairs which strongly mean revert.
+6. **Ranking**: To rank the pair candidates, we sort them by the highest mean-crossing frequency, shortest half-life,
+   and finally
+   the lowest $p$-value, retaining the top $N = 5$ pairs. This ranking prioritizes pairs with the strongest and fastest
+   mean-reverting dynamics.
 
-### Trading signals
+### Trading Signals
 
 During the trading window, entry and exit signals are evaluated daily at market close:
 
-1. **Spread Computation**: Over a rolling lookback window $(W = 30\text{ days up to today's close})$, we compute the
+1. **Spread Computation**: Over a rolling lookback window ( $W = 30$ trading days up to today's close), we compute the
    historical spread using the pre-estimated hedge ratio $\beta$ and intercept $\alpha$ on log-prices:
    $$S_t = \ln(Y_t) - \alpha - \beta \ln(X_t)$$
-2. **Rolling Z-Score**: We normalize today's spread against its 30-day rolling mean $(\mu_W)$ and standard
-   deviation $(\sigma_W)$:
+2. **Rolling Z-Score**: We normalize today's spread against its $W$-day rolling mean ($\mu_W$) and standard
+   deviation ($\sigma_W$):
    $$Z_t = \frac{S_t - \mu_W}{\sigma_W}$$
 
-When scanning for new entries $(Z_{\text{entry}} = 3.0 \text{ in our optimal run})$:
+When scanning for new entries ($Z_{\text{entry}} = 3.0$ in our optimal run):
 $$Z_t \ge +Z_{\text{entry}} \longrightarrow \textbf{Short Spread} \quad (\text{Short } Y,\ \text{Long } X)$$
 $$Z_t \le -Z_{\text{entry}} \longrightarrow \textbf{Long Spread} \quad (\text{Long } Y,\ \text{Short } X)$$
 
-Once an entry order is triggered at observed $Z_{\text{obs}}$, three exit conditions are defined and monitored daily:
+Once an entry order is triggered at observed $Z_{\text{obs}}$ on signal date $t_{\text{signal}}$, three exit conditions
+are defined and monitored daily:
 
-1. **Take-Profit**: The spread reverts back to equilibrium, $|Z_t| \le Z_{\text{exit}}$ (e.g. $0.25$).
+1. **Take-Profit**: The spread reverts back to (or crosses beyond) equilibrium: $Z_t \le +Z_{\text{exit}}$ for a Short
+   Spread, or $Z_t \ge -Z_{\text{exit}}$ for a Long Spread (e.g., $Z_{\text{exit}} = 0.25$).
 2. **Dynamic Stop-Loss**: The spread diverges further beyond the entry
-   level, $|Z_t| \ge |Z_{\text{obs}}| + \Delta Z_{\text{SL}}$ (e.g. $\Delta Z_{\text{SL}} = 1.5$).
+   level: $Z_t \ge Z_{\text{obs}} + \Delta Z_{\text{SL}}$ for a Short Spread,
+   or $Z_t \le Z_{\text{obs}} - \Delta Z_{\text{SL}}$ for a Long Spread (e.g., $\Delta Z_{\text{SL}} = 1.5$).
 3. **Time-Stop**: The trade exceeds its maximum expected convergence horizon based on the
-   half-life, $t - t_{\text{entry}} \ge k \times \tau_{1/2}$ (e.g. $k = 3.0$).
+   half-life, $t - t_{\text{signal}} \ge m \times \tau_{1/2}$ calendar days (e.g., $m = 3.0$).
 
-If any of these conditions is met at day $t$'s close, an exit order is queued and executed at the next market
-open $t+1$.
+If any of these conditions is met at the close of day $t$, an exit order is queued and executed at the next market
+open ($t+1$).
 
-### Position sizing
+### Position Sizing
 
 Because we trade statistical anomalies, positions are sized to be **beta-neutral (market-neutral)** so that PnL is
 driven by spread convergence rather than broad market direction.
@@ -105,26 +111,30 @@ $$|\text{Quantity}_Y| = \frac{\text{Exposure}_Y}{\text{Price}_Y} \qquad \text{an
 *Note: These represent absolute share quantities (rounded down to $0.01$ share steps). In the portfolio ledger, the
 shorted leg is recorded as a negative quantity.*
 
-### Backtest execution
+### Backtest Execution
 
 The backtest engine consists of a rolling walk-forward loop which splits data into two consecutive slices: a **formation
-window** of $252 \text{ trading days} \approx 1 \text{ year}$ used to discover and rank pairs, followed by a **trading
-window** of $10\text{--}20 \text{ days}$ where those pairs are traded. Once the trading window ends,
+window** of $252$ trading days ($\approx 1$ year) used to discover and rank pairs, followed by a **trading
+window** of $10\text{--}40$ trading days ($10$ days in our optimal configuration) where those pairs are traded. Once the
+trading window ends,
 both windows move forward by the trading window length and the pair universe is re-evaluated.
 
 Within each day $t$ of the trading window:
 
-1. **Market Open $t$**: Pending orders generated at the previous close $t-1$ are executed at opening prices (processing
+1. **Market Open ($t$)**: Pending orders generated at the previous close ($t-1$) are executed at opening prices
+   (processing
    `EXIT` orders first to release capital before opening new positions, while ensuring no single stock is
    traded across multiple active pairs simultaneously).
-2. **Market Close $t$**: Open positions are priced to update portfolio equity, and new entry/exit signals
-   are evaluated on closing prices and queued for the next market open $t+1$.
+2. **Market Close ($t$)**: Open positions are marked to market to update portfolio equity, and new entry/exit signals
+   are evaluated on closing prices and queued for the next market open ($t+1$).
 
 Finally, every trade is subject to realistic market frictions:
 
-* **Transaction Costs (Entry & Exit)**: Applied to the gross dollar exposure of both legs upon opening and closing:
+* **Transaction Costs (Entry & Exit)**: Applied to the gross dollar exposure ($E_{\text{gross}}$) of both legs upon
+  opening and closing:
   $$\text{Transaction Fees} = E_{\text{gross}} \cdot (\text{commission\_pct} + \text{slippage\_pct})$$
-* **Short-Borrowing Costs**: Applied on the shorted leg over the holding duration (using an *Act/360* day-count
+* **Short-Borrowing Costs**: Applied on the initial shorted leg exposure ($E_{\text{short}}$) at annual
+  rate $r_{\text{borrow}}$ over the holding duration (using an *Act/360* day-count
   convention) and deducted upon position closure:
   $$\text{Borrow Fees} = E_{\text{short}} \cdot r_{\text{borrow}} \cdot \frac{\text{Holding Days}}{360}$$
 
@@ -132,26 +142,27 @@ Finally, every trade is subject to realistic market frictions:
 
 The strategy is evaluated on 200 established S&P 500 constituents (full ticker universe available in [
 `config/config_in_sample.json`](config/config_in_sample.json) and [
-`config/config_out_of_sample.json`](config/config_out_of_sample.json)). Two rounds of test were conducted
-independently, in sample optimization from 2010 to 2020 and strategy validation with out of sample data from 2021
-to 2026. In addition to that, all the tested configuration's result are available at
-[`docs/test_run`](docs/test_run). All the subfolders are numbered according to the run id and each one contains the
+`config/config_out_of_sample.json`](config/config_out_of_sample.json)). Two independent evaluation phases were
+conducted: an **In-Sample optimization** (2010–2020) and an **Out-of-Sample validation** (2020–2026, with 2020 serving
+as the initial 252-day formation window). In addition, results for all tested configurations are available in
+[`docs/test_run`](docs/test_run). All subfolders are named according to their run ID and each contains the
 following files:
 
-- `equity.csv`: CSV file with all the equity data(date, value, daily returns, highest value to-date, and drawdown
-  to-date)
-- `performance.png & performance.svg`: Both files display a plot of the equity curve followed by the drawdown and yearly
+- `equity.csv`: CSV file with the daily equity time series (`Date`, `equity`, `daily_return`, `cumulative_return`,
+  `high_water_mark`, and `drawdown`).
+- `performance.png` & `performance.svg`: Multi-panel tear sheet displaying the equity curve, underwater drawdown, and
+  annual
   returns breakdown.
-- `summary.json`: Contains the backtest metadata, such as the traded periods, encountered warnings and KPI(sharpe,
-  drawdown, number of trade, etc.)
-- `trades.csv`: Contains all the taken trades, with all the information about them (zscore, prices, direction, traded
-  pair, returns, etc.)
+- `summary.json`: Backtest metadata, including traded period, warnings, and portfolio KPIs (Sharpe ratio,
+  drawdown, number of trades, etc.).
+- `trades.csv`: Full ledger of all closed trades (`pair`, `direction`, `entry_date`, `exit_date`, `duration_days`,
+  `entry_zscore`, `exit_zscore`, `entry_exposure`, `gross_pnl`, friction breakdown, `net_pnl`, and `net_return_pct`).
 
-### Static backtest configuration
+### Static Backtest Configuration
 
 Across all benchmark runs, the pair selection criteria and portfolio constraints remained fixed, while trading
-thresholds, market frictions and loopback windows were optimized. In the following code, we can see the skeleton of the
-configuration with clear marks on the parameters that were modified.
+thresholds, market frictions, and lookback windows were optimized. The template configuration below highlights the
+parameters varied across benchmark runs:
 
 ```json
 {
@@ -192,10 +203,9 @@ configuration with clear marks on the parameters that were modified.
 }
 ```
 
-### In sample optimization (2010-2020)
+### In-Sample Optimization (2010–2020)
 
-In the following table, we can see the detailed breakdown of the parameters' optimization: This optimization was done
-without including any market frictions.
+The table below details the parameter optimization (conducted without market frictions):
 
 |               Run                | Tested Parameter                             | Entry $Z$ | Exit $Z$ | SL $\Delta$ | $Z$-Win | Trade Win | Total Return |  Sharpe   |   Max DD   |  Winrate   | Profit Factor | Trades  | Phase Verdict                  |
 |:--------------------------------:|:---------------------------------------------|:---------:|:--------:|:-----------:|:-------:|:---------:|:------------:|:---------:|:----------:|:----------:|:-------------:|:-------:|:-------------------------------|
@@ -208,15 +218,17 @@ without including any market frictions.
 | [`run_07`](docs/test_run/run_07) | SL $\Delta \to \mathbf{1.50}$                |   3.00    |   0.25   |  **1.50**   |   30    |    20     |   +11.97%    |   0.465   |   -4.29%   |   52.66%   |     1.325     |   357   | **Phase 2 Winner**             |
 | [`run_08`](docs/test_run/run_08) | SL $\Delta \to \mathbf{0.50}$                |   3.00    |   0.25   |  **0.50**   |   30    |    20     |    +6.32%    |   0.262   |   -5.34%   |   44.22%   |     1.154     |   441   | Tight stop suffocates trades   |
 | [`run_09`](docs/test_run/run_09) | $Z$-Window $\to \mathbf{60}$                 |   3.00    |   0.25   |    1.50     | **60**  |    20     |    +0.87%    |   0.050   |   -8.29%   |   51.44%   |     1.025     |   208   | Excessive lag misses reversion |
-| [`run_10`](docs/test_run/run_10) | $Z$-Window $\to \mathbf{15}$                 |   3.00    |   0.25   |    1.50     | **15**  |    20     |    +8.56%    |   0.300   |   -5.46%   |   49.26%   |     1.134     |   678   | Vulnerable to short-term noise |
+| [`run_10`](docs/test_run/run_10) | $Z$-Window $\to \mathbf{15}$                 |   3.00    |   0.25   |    1.50     | **15**  |    20     |    +8.56%    |   0.299   |   -5.46%   |   49.26%   |     1.134     |   678   | Vulnerable to short-term noise |
 | [`run_11`](docs/test_run/run_11) | Trade Window $\to \mathbf{40}$               |   3.00    |   0.25   |    1.50     |   30    |  **40**   |   +12.13%    |   0.450   |   -5.93%   |   49.09%   |     1.289     |   438   | Cointegration decays over 40d  |
 | [`run_12`](docs/test_run/run_12) | Trade Window $\to \mathbf{10}$               | **3.00**  | **0.25** |  **1.50**   | **30**  |  **10**   | **+13.08%**  | **0.511** | **-3.59%** | **54.98%** |   **1.383**   | **331** | **In-Sample Champion**         |
 
-The backtest ran from the 01.01.2010 to 31.12.2020, with the year 2010 which served as the initial formation window.
+The backtest ran from `2010-01-01` to `2020-12-31`, with 2010 serving as the initial 252-day formation window.
 
-### Out-of-sample validation
+### Out-of-Sample Validation (2021–2026)
 
-The following table illustrates how the champion configuration from the in-sample phase (`run_12`) performed on unseen out-of-sample data, both with and without market frictions:
+The following table illustrates how the champion configuration from the in-sample phase (`run_12`) performed on unseen
+out-of-sample data (`2020-01-01` to `2026-09-30`, with 2020 serving as the initial formation window), both with and
+without market frictions:
 
 | Performance Metric           | In-Sample Champion ([`run_12`](docs/test_run/run_12)) | Out-of-Sample Gross ([`run_oos_gross`](docs/test_run/run_oos_gross)) | Out-of-Sample Net ([`run_oos_net`](docs/test_run/run_oos_net)) |
 |:-----------------------------|:-----------------------------------------------------:|:--------------------------------------------------------------------:|:--------------------------------------------------------------:|
@@ -234,18 +246,19 @@ The following table illustrates how the champion configuration from the in-sampl
 | **Total Closed Trades**      |                          331                          |                                 185                                  |                              185                               |
 | **Total Cumulative Costs**   |                         $0.00                         |                                $0.00                                 |                            $495.19                             |
 
-Here is the performance breakdown for the out of sample run including market frictions:
+Here is the performance breakdown for the out-of-sample run including market frictions:
 <p align="center">
       <img src="docs/test_run/run_oos_net/performance.svg" alt="Out-of-Sample Net Performance Breakdown">
       <br>
-      <em><b>Fig. 2</b> — Out-of-Sample net performance breakdown with market frictions (2021–2026).</em>
+      <em><b>Fig. 2</b> — Out-of-Sample net performance breakdown with market frictions (2021–2026, through Sept 2026).</em>
 </p>
 
 As shown in **Figure 2**, the strategy was profitable from 2021 to 2022 and ended roughly flat in 2023. However, from
-2024 onwards, performance degraded sharply with an annual loss of $-8.14\%$ in 2024.
+2024 onwards, performance degraded sharply with an annual return of -8.14% in 2024.
 
 To better understand the strategy's behavior, we can audit the Out-of-Sample trade ledger ([
-`docs/test_run/run_oos_net/trades.csv`](docs/test_run/run_oos_net/trades.csv)) year by year:
+`docs/test_run/run_oos_net/trades.csv`](docs/test_run/run_oos_net/trades.csv)) grouped by trade exit year (with 2026
+covering through `2026-09-29`):
 
 |   Year   | Closed Trades |  Winrate  | Gross PnL (No Fees) | Total Frictions |   Net PnL    |
 |:--------:|:-------------:|:---------:|:-------------------:|:---------------:|:------------:|
@@ -256,11 +269,10 @@ To better understand the strategy's behavior, we can audit the Out-of-Sample tra
 | **2025** |      31       |   41.9%   |       -$55.22       |     $76.15      | **-$131.37** |
 | **2026** |      26       |   42.3%   |      -$277.38       |     $66.15      | **-$343.52** |
 
-As this table shows, the strategy's winrate stayed remarkably consistent around $42\text{--}44\%$ in normal years. It
-even generated positive net profits in 2022 (+1.33%) while the S&P 500 dropped -18%, validating our
+As this table shows, the strategy's winrate stayed remarkably consistent around 42%–44% in normal years. It
+even generated positive net profits in 2022 (+1.33%) while the S&P 500 dropped ~18%, validating our
 market-neutral approach. However, in 2024, the strategy suffered its worst year with its winrate cut nearly in half to
-24.3% (accounting for 73% of the total Out-of-Sample net
-loss). This breakdown can be explained by three main factors:
+24.3% (accounting for ~70% of total closed-trade net losses). This breakdown can be explained by three main factors:
 
 - **Regime Shift**: Pairs trading relies on the hypothesis that when the spread between two
   cointegrated peers diverges, it is a temporary anomaly that will revert to its mean. From 2024 onward, however,
@@ -275,15 +287,15 @@ loss). This breakdown can be explained by three main factors:
 - **Static OLS Hedge Ratio**: Because the hedge ratio $\beta$ and intercept $\alpha$ are estimated via a
   static OLS regression over a 252-day backward-looking formation window, sudden structural re-ratings take months
   to be fully reflected, leaving the spread model behind during rapid regime shifts.
-- **Friction Drag**: Across all 185 trades, commissions, slippage, and short-borrow fees totaled **$495.19**
-  —accounting for **$47\%$ of the overall net loss** (`-10.51%` Net vs. `-5.82%` Gross) and turning 2023 from a
+- **Friction Drag**: Across all 185 closed trades, commissions, slippage, and short-borrow fees totaled **$495.19**
+  —accounting for **47% of the overall net portfolio loss** (`-10.51%` Net vs. `-5.82%` Gross) and turning 2023 from a
   profitable gross year (`+$28.89`) into a slight net loss (`-$62.45`).
 
-## Project's architecture
+## Project Architecture
 
-### Codebase organization
+### Codebase Organization
 
-The project's code base is organized as follows:
+The project's codebase is organized as follows:
 
 ```text
 PairsTrading/
@@ -321,7 +333,7 @@ PairsTrading/
 └── requirements.txt           # Python dependencies
 ```
 
-### Execution pipeline
+### Execution Pipeline
 
 ```mermaid
 flowchart LR
@@ -332,9 +344,9 @@ flowchart LR
 
     subgraph Engine["2. Walk-Forward Backtest Loop"]
         FE --> BE["BacktestEngine\n(Orchestrator)"]
-        BE <-->|"Formation Window (252d)\nPCA -> OPTICS -> ADF -> OU/Hurst"| PE["PairEngine\n(Pair Selector)"]
-        BE <-->|"Close (t): Rolling Z-Score\nQueue Signals for Open (t+1)"| TE["TradingEngine\n(Signals & Sizing)"]
-        BE -->|"Open (t+1): Execute Orders\nClose (t): MTM & Frictions"| PORT["Portfolio\n(Accounting Ledger)"]
+        BE <-->|" Formation Window (252d)\nPCA -> OPTICS -> ADF -> OU/Hurst "| PE["PairEngine\n(Pair Selector)"]
+        BE <-->|" Close (t): Rolling Z-Score & Signals\nOpen (t+1): Position Sizing "| TE["TradingEngine\n(Signals & Sizing)"]
+        BE <-->|" Open (t+1): Execute Orders\nClose (t): MTM & Frictions "| PORT["Portfolio\n(Accounting Ledger)"]
     end
 
     subgraph Analytics["3. Post-Trade Analytics"]
@@ -345,13 +357,18 @@ flowchart LR
 
 ## How to Use
 
-Follow these steps to set up and run the engine locally:
+Follow these steps to set up and run the engine locally from the project root directory:
 
-1. Create and activate a virtual environment (Python $\ge 3.13$):
+1. Create and activate a virtual environment (Python 3.13+):
 
 ```powershell
+# Windows (PowerShell)
 python -m venv .venv
 .\.venv\Scripts\activate
+
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 2. Install the required dependencies:
@@ -363,10 +380,10 @@ pip install -r requirements.txt
 3. Run a single backtest (using `config/config.json`) or reproduce the full benchmark suite:
 
 ```powershell
-# Run default configuration (config/config.json)
+# Run default configuration (config/config.json -> writes output to ./reports/<timestamp>)
 python main.py
 
-# Reproduce all 12 In-Sample and 2 Out-of-Sample benchmark runs
+# Reproduce all 12 In-Sample and 2 Out-of-Sample benchmark runs (note: clears and rewrites ./reports/)
 python scripts/run_all_benchmarks.py
 ```
 
@@ -376,14 +393,14 @@ range, selection criteria, Z-score thresholds, capital allocation, and fee struc
 ## Conclusion
 
 This project marked my first step into quantitative finance. It helped me understand how to design and implement a
-complete trading strategy alongside its own event-driven backtesting engine. In addition, it taught me how to properly
+complete trading strategy alongside its own walk-forward backtesting engine. In addition, it taught me how to properly
 test and validate a quantitative model using two separate datasets (In-Sample and Out-of-Sample), incorporate realistic
 market frictions and borrowing fees, and evaluate
 risk-adjusted metrics such as the Sharpe ratio and maximum drawdown. Throughout this project, I also learned the
-fundamentals of statistical arbitrage, in both the economic intuition and the mathematical foundations required to
+fundamentals of statistical arbitrage, covering both the economic intuition and the mathematical foundations required to
 select and trade meaningful pairs.
 
-The key takeaways I will certainly keep are:
+The key takeaways from this project are:
 
 1. **Theory vs. Market Reality**: A pair being statistically tradable doesn't mean it will survive the markets. As we
    saw in the Out-of-Sample run in 2024, market regime shifts have a major influence on trading and can break a model
@@ -409,12 +426,17 @@ implemented:
    conducted on current S&P 500 constituents with continuous trading history since 2010. Using a point-in-time
    historical constituent dataset (including delisted or acquired companies) would eliminate survivorship bias and make
    the backtest even more accurate.
-3. **Position Sizing**: Currently, every pair is sized in the same way, using 15% of portfolio equity (capped by available cash). This
+3. **Position Sizing**: Currently, every pair is sized in the same way, using 15% of portfolio equity (capped by
+   available cash). This
    allocation doesn't take into account how confident we are in the trade or its expected volatility. Instead of
    static sizing, we could implement a volatility-based approach or compute a confidence score for the pair that
-   would decide how much capital to allocate. With dynamic position sizing, we could hold more positions simultaneously while
+   would decide how much capital to allocate. With dynamic position sizing, we could hold more positions simultaneously
+   while
    limiting the impact of riskier trades.
-4. **Market Regime Filters**: Currently, our system always trades, regardless of the broader market regime. As we saw in the
-   Out-of-Sample run of 2024, this can lead to poor performance during high-dispersion periods. Therefore, implementing a filter to avoid trading
-   during regimes of low asset correlation (for instance, when the total PCA explained variance drops below a threshold) could help prevent
+4. **Market Regime Filters**: Currently, our system always trades, regardless of the broader market regime. As we saw in
+   the
+   Out-of-Sample run of 2024, this can lead to poor performance during high-dispersion periods. Therefore, implementing
+   a filter to avoid trading
+   during regimes of low asset correlation (for instance, when the total PCA explained variance drops below a threshold)
+   could help prevent
    such losses.
