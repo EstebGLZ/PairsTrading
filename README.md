@@ -70,8 +70,8 @@ During the trading window, entry and exit signals are evaluated daily at market 
 1. **Spread Computation**: Over a rolling lookback window ( $W = 30$ trading days up to today's close), we compute the
    historical spread using the pre-estimated hedge ratio $\beta$ and intercept $\alpha$ on log-prices:
    $$S_t = \ln(Y_t) - \alpha - \beta \ln(X_t)$$
-2. **Rolling Z-Score**: We normalize today's spread against its $W$-day rolling mean ($\mu_W$) and standard
-   deviation ($\sigma_W$):
+2. **Rolling Z-Score**: We normalize today's spread against its formation equilibrium mean ($\mu$) and $W$-day rolling
+   standard deviation ($\sigma_W$):
    $$Z_t = \frac{S_t - \mu_W}{\sigma_W}$$
 
 When scanning for new entries ($Z_{\text{entry}} = 3.0$ in our optimal run):
