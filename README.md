@@ -134,7 +134,7 @@ Finally, every trade is subject to realistic market frictions:
 
 * **Transaction Costs (Entry & Exit)**: Applied to the gross dollar exposure ($E_{\text{gross}}$) of both legs upon
   opening and closing:
-  $$\text{Transaction Fees} = E_{\text{gross}} \cdot (\text{commission\_pct} + \text{slippage\_pct})$$
+  $$\text{Transaction Fees} = E_{\text{gross}} \cdot (\text{commission pct} + \text{slippage pct})$$
 * **Short-Borrowing Costs**: Applied on the initial shorted leg exposure ($E_{\text{short}}$) at annual
   rate $r_{\text{borrow}}$ over the holding duration (using an *Act/360* day-count
   convention) and deducted upon position closure:
