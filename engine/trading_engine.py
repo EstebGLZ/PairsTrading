@@ -28,7 +28,8 @@ class TradingEngine:
         :param date: The traded date
         :return: Trading order if an entry is available, None otherwise
         """
-        time_exit = date + timedelta(days=config.half_life_time_exit_factor * pair.half_life)
+        # We multiply by 365/252 in order to count only trading days and +1 for the next day opening
+        time_exit = date + timedelta(days=(config.half_life_time_exit_factor * pair.half_life * 365 / 252 + 1))
 
         if zscore >= config.entry_zscore:  # Short spread
             sl_zscore: float = config.stop_zscore_delta + zscore

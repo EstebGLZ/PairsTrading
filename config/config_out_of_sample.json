@@ -225,7 +225,7 @@
   },
   "backtest_config": {
     "formation_window": 252,
-    "trading_window": 10,
+    "trading_window": 40,
     "starting_capital": 10000,
     "commission_pct": 0.0005,
     "slippage_pct": 0.0003,

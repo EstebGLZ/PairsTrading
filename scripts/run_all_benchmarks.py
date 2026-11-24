@@ -1,10 +1,9 @@
-import os
-import sys
-import shutil
-import pickle
 import logging
-from pathlib import Path
+import pickle
+import shutil
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -14,7 +13,7 @@ from engine.backtest_engine import BacktestEngine
 from engine.pair_engine import PairEngine
 from analysis.statistics import Statistics
 from utils.load_config import Configuration
-from models.configuration import BacktestConfig, TradingConfig, PairSelectionConfig
+from models.configuration import BacktestConfig, TradingConfig
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,10 +35,12 @@ if PAIRS_CACHE_FILE.exists():
 
 _original_select = PairEngine.select_pairs
 
+
 def cached_select_pairs(data, config):
     start = data.index.get_level_values("Date").min()
     end = data.index.get_level_values("Date").max()
-    key = (start, end, config.n_components, config.significance_level, config.max_hurst, config.min_half_life, config.max_half_life, config.min_crossings)
+    key = (start, end, config.n_components, config.significance_level, config.max_hurst, config.min_half_life,
+           config.max_half_life, config.min_crossings)
     if key not in _pairs_cache:
         _pairs_cache[key] = _original_select(data, config)
         try:
@@ -48,6 +49,7 @@ def cached_select_pairs(data, config):
         except Exception:
             pass
     return list(_pairs_cache[key])
+
 
 PairEngine.select_pairs = cached_select_pairs
 
@@ -86,8 +88,10 @@ def main():
 
     # 2 Out-of-Sample configurations
     oos_runs = [
-        {"id": "run_oos_gross", "entry": 3.0, "exit": 0.25, "sl": 1.5, "z_win": 30, "t_win": 10, "comm": 0.0, "slip": 0.0, "borrow": 0.0},
-        {"id": "run_oos_net", "entry": 3.0, "exit": 0.25, "sl": 1.5, "z_win": 30, "t_win": 10, "comm": 0.0005, "slip": 0.0003, "borrow": 0.01},
+        {"id": "run_oos_gross", "entry": 3.0, "exit": 0.25, "sl": 1.5, "z_win": 30, "t_win": 40, "comm": 0.0,
+         "slip": 0.0, "borrow": 0.0},
+        {"id": "run_oos_net", "entry": 3.0, "exit": 0.25, "sl": 1.5, "z_win": 30, "t_win": 40, "comm": 0.0005,
+         "slip": 0.0003, "borrow": 0.01},
     ]
 
     # Clean reports folder as requested
@@ -104,8 +108,9 @@ def main():
     # Execute In-Sample runs
     for run in in_sample_runs:
         run_name = run["id"]
-        logger.info(f"--- Executing {run_name} (In-Sample: Entry={run['entry']}, Exit={run['exit']}, SL={run['sl']}, Z-Win={run['z_win']}, Trade-Win={run['t_win']}) ---")
-        
+        logger.info(
+            f"--- Executing {run_name} (In-Sample: Entry={run['entry']}, Exit={run['exit']}, SL={run['sl']}, Z-Win={run['z_win']}, Trade-Win={run['t_win']}) ---")
+
         btest_cfg = BacktestConfig(
             formation_window=252,
             trading_window=run["t_win"],
@@ -151,8 +156,9 @@ def main():
     # Execute Out-of-Sample runs
     for run in oos_runs:
         run_name = run["id"]
-        logger.info(f"--- Executing {run_name} (Out-of-Sample: Comm={run['comm']}, Slip={run['slip']}, Borrow={run['borrow']}) ---")
-        
+        logger.info(
+            f"--- Executing {run_name} (Out-of-Sample: Comm={run['comm']}, Slip={run['slip']}, Borrow={run['borrow']}) ---")
+
         btest_cfg = BacktestConfig(
             formation_window=252,
             trading_window=run["t_win"],

@@ -265,7 +265,7 @@ class PairEngine:
         crossings = None
 
         # Don't trade meaningless pairs
-        if best["hedge_ratio"] == 0 or best["spread"].std() <= 0:
+        if best["hedge_ratio"] <= 0 or best["spread"].std() <= 0:
             return None, False
 
         # Check mean reverting behavior

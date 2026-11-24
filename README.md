@@ -8,9 +8,9 @@ tradable pairs, and executes submitted orders at $t+1$, avoiding look-ahead bias
 (incorporating commissions, slippage, and short-borrowing costs), fully modular, and generates detailed performance
 analytics and trade logs. Here is an example of the strategy's output:
 <p align="center">
-      <img src="docs/test_run/run_12/performance.svg" alt="Performance breakdown (gross in-sample results)">
-      <br>
-      <em><b>Fig. 1</b> — Performance breakdown from the best in-sample configuration (Run 12, 2011–2020).</em>
+          <img src="docs/test_run/run_11/performance.svg" alt="Performance breakdown (gross in-sample results)">
+          <br>
+          <em><b>Fig. 1</b> — Performance breakdown from the best in-sample configuration (Run 11, 2011–2020).</em>
 </p>
 
 ---
@@ -45,7 +45,9 @@ behavior:
 4. **Cointegration Test (Engle-Granger)**: Within each cluster, we test every candidate pair in both directions on
    log-prices and retain the direction with the lowest $p$-value. An Ordinary Least Squares (OLS)
    regression estimates the hedge ratio $\beta$ and the spread, followed by an Augmented Dickey-Fuller (ADF) test on
-   the residuals to confirm stationarity with $p\text{-value} \le 0.05$.
+   the residuals to confirm stationarity with $p\text{-value} \le 0.05$. If $\beta \le 0$, we reject the candidate pair
+   so we
+   make sure we have both short and long legs.
 5. **Mean-Reverting Behavior**: To ensure a cointegrated pair reverts quickly and reliably enough to be traded
    profitably, we compute three key indicators on the spread:
     - **Hurst Exponent $(H)$**: Indicates whether the spread is genuinely mean-reverting $(H < 0.5)$ rather than
@@ -53,7 +55,7 @@ behavior:
     - **Ornstein-Uhlenbeck Half-Life $(\tau_{1/2})$**: Estimates the expected time for the spread to
       revert halfway back to its equilibrium (retained within $(1, 365)$ days). Beyond confirming the presence of a
       restoring force, this metric also defines our dynamic time-stop: if a position remains open
-      after $m \times \tau_{1/2}$ days, we assume the structural relationship has
+      after $m \times \tau_{1/2}$ days (trading days, weekends not included), we assume the structural relationship has
       broken down and close the trade.
     - **Mean-Crossing Frequency**: Acts as an empirical safeguard to ensure the spread actively oscillates around its
       equilibrium. It counts how many times per year the spread crosses its mean (requiring $\ge 12$ crossings/year),
@@ -72,7 +74,7 @@ During the trading window, entry and exit signals are evaluated daily at market 
    $$S_t = \ln(Y_t) - \alpha - \beta \ln(X_t)$$
 2. **Rolling Z-Score**: We normalize today's spread against its formation equilibrium mean ($\mu$) and $W$-day rolling
    standard deviation ($\sigma_W$):
-   $$Z_t = \frac{S_t - \mu_W}{\sigma_W}$$
+   $$Z_t = \frac{S_t - \mu}{\sigma_W}$$
 
 When scanning for new entries ($Z_{\text{entry}} = 3.0$ in our optimal run):
 $$Z_t \ge +Z_{\text{entry}} \longrightarrow \textbf{Short Spread} \quad (\text{Short } Y,\ \text{Long } X)$$
@@ -87,7 +89,7 @@ are defined and monitored daily:
    level: $Z_t \ge Z_{\text{obs}} + \Delta Z_{\text{SL}}$ for a Short Spread,
    or $Z_t \le Z_{\text{obs}} - \Delta Z_{\text{SL}}$ for a Long Spread (e.g., $\Delta Z_{\text{SL}} = 1.5$).
 3. **Time-Stop**: The trade exceeds its maximum expected convergence horizon based on the
-   half-life, $t - t_{\text{signal}} \ge m \times \tau_{1/2}$ calendar days (e.g., $m = 3.0$).
+   half-life, $t - t_{\text{signal}} \ge m \cdot \tau_{1/2} \cdot \frac{365}{252} + 1$ calendar days (e.g., $m = 3.0$).
 
 If any of these conditions is met at the close of day $t$, an exit order is queued and executed at the next market
 open ($t+1$).
@@ -115,7 +117,7 @@ shorted leg is recorded as a negative quantity.*
 
 The backtest engine consists of a rolling walk-forward loop which splits data into two consecutive slices: a **formation
 window** of $252$ trading days ($\approx 1$ year) used to discover and rank pairs, followed by a **trading
-window** of $10\text{--}40$ trading days ($10$ days in our optimal configuration) where those pairs are traded. Once the
+window** of $10\text{--}40$ trading days ($40$ days in our optimal configuration) where those pairs are traded. Once the
 trading window ends,
 both windows move forward by the trading window length and the pair universe is re-evaluated.
 
@@ -209,42 +211,42 @@ The table below details the parameter optimization (conducted without market fri
 
 |               Run                | Tested Parameter                             | Entry $Z$ | Exit $Z$ | SL $\Delta$ | $Z$-Win | Trade Win | Total Return |  Sharpe   |   Max DD   |  Winrate   | Profit Factor | Trades  | Phase Verdict                  |
 |:--------------------------------:|:---------------------------------------------|:---------:|:--------:|:-----------:|:-------:|:---------:|:------------:|:---------:|:----------:|:----------:|:-------------:|:-------:|:-------------------------------|
-| [`run_01`](docs/test_run/run_01) | Baseline model                               |   3.50    |   0.25   |    1.00     |   30    |    20     |    +6.46%    |   0.339   |   -4.81%   |   51.50%   |     1.300     |   233   | Initial baseline               |
-| [`run_02`](docs/test_run/run_02) | Exit $Z \to \mathbf{0.00}$                   |   3.50    | **0.00** |    1.00     |   30    |    20     |    +6.50%    |   0.340   |   -4.81%   |   51.50%   |     1.302     |   233   | Identical dynamics             |
-| [`run_03`](docs/test_run/run_03) | Entry $Z \to \mathbf{3.00}$                  | **3.00**  |   0.25   |    1.00     |   30    |    20     |   +11.34%    |   0.441   |   -4.36%   |   48.56%   |     1.297     |   383   | **Phase 1 Winner**             |
-| [`run_04`](docs/test_run/run_04) | Entry $\mathbf{3.00}$ & Exit $\mathbf{0.00}$ | **3.00**  | **0.00** |    1.00     |   30    |    20     |    +9.59%    |   0.375   |   -4.31%   |   47.78%   |     1.249     |   383   | Waiting for $Z=0$ drags return |
-| [`run_05`](docs/test_run/run_05) | Entry $Z \to \mathbf{2.50}$                  | **2.50**  |   0.25   |    1.00     |   30    |    20     |    +7.21%    |   0.262   |   -4.57%   |   47.04%   |     1.126     |   557   | Premature entries / noise      |
-| [`run_06`](docs/test_run/run_06) | Entry $\mathbf{2.50}$ & Exit $\mathbf{0.00}$ | **2.50**  | **0.00** |    1.00     |   30    |    20     |    +6.05%    |   0.221   |   -5.37%   |   45.95%   |     1.105     |   555   | Lowest Sharpe in Phase 1       |
-| [`run_07`](docs/test_run/run_07) | SL $\Delta \to \mathbf{1.50}$                |   3.00    |   0.25   |  **1.50**   |   30    |    20     |   +11.97%    |   0.465   |   -4.29%   |   52.66%   |     1.325     |   357   | **Phase 2 Winner**             |
-| [`run_08`](docs/test_run/run_08) | SL $\Delta \to \mathbf{0.50}$                |   3.00    |   0.25   |  **0.50**   |   30    |    20     |    +6.32%    |   0.262   |   -5.34%   |   44.22%   |     1.154     |   441   | Tight stop suffocates trades   |
-| [`run_09`](docs/test_run/run_09) | $Z$-Window $\to \mathbf{60}$                 |   3.00    |   0.25   |    1.50     | **60**  |    20     |    +0.87%    |   0.050   |   -8.29%   |   51.44%   |     1.025     |   208   | Excessive lag misses reversion |
-| [`run_10`](docs/test_run/run_10) | $Z$-Window $\to \mathbf{15}$                 |   3.00    |   0.25   |    1.50     | **15**  |    20     |    +8.56%    |   0.299   |   -5.46%   |   49.26%   |     1.134     |   678   | Vulnerable to short-term noise |
-| [`run_11`](docs/test_run/run_11) | Trade Window $\to \mathbf{40}$               |   3.00    |   0.25   |    1.50     |   30    |  **40**   |   +12.13%    |   0.450   |   -5.93%   |   49.09%   |     1.289     |   438   | Cointegration decays over 40d  |
-| [`run_12`](docs/test_run/run_12) | Trade Window $\to \mathbf{10}$               | **3.00**  | **0.25** |  **1.50**   | **30**  |  **10**   | **+13.08%**  | **0.511** | **-3.59%** | **54.98%** |   **1.383**   | **331** | **In-Sample Champion**         |
+| [`run_01`](docs/test_run/run_01) | Baseline model                               |   3.50    |   0.25   |    1.00     |   30    |    20     |   +10.37%    |   0.486   |   -4.91%   |   48.88%   |     1.450     |   223   | Initial baseline               |
+| [`run_02`](docs/test_run/run_02) | Exit $Z \to \mathbf{0.00}$                   |   3.50    | **0.00** |    1.00     |   30    |    20     |   +10.55%    |   0.492   |   -4.91%   |   48.43%   |     1.455     |   223   | Identical dynamics             |
+| [`run_03`](docs/test_run/run_03) | Entry $Z \to \mathbf{3.00}$                  | **3.00**  |   0.25   |    1.00     |   30    |    20     |   +11.54%    |   0.402   |   -5.61%   |   46.76%   |     1.268     |   355   | **Phase 1 Winner (Return)**    |
+| [`run_04`](docs/test_run/run_04) | Entry $\mathbf{3.00}$ & Exit $\mathbf{0.00}$ | **3.00**  | **0.00** |    1.00     |   30    |    20     |   +10.98%    |   0.383   |   -5.61%   |   46.20%   |     1.255     |   355   | Waiting for $Z=0$ drags return |
+| [`run_05`](docs/test_run/run_05) | Entry $Z \to \mathbf{2.50}$                  | **2.50**  |   0.25   |    1.00     |   30    |    20     |    +4.13%    |   0.147   |   -6.68%   |   48.03%   |     1.069     |   508   | Premature entries / noise      |
+| [`run_06`](docs/test_run/run_06) | Entry $\mathbf{2.50}$ & Exit $\mathbf{0.00}$ | **2.50**  | **0.00** |    1.00     |   30    |    20     |    +2.42%    |   0.093   |   -6.65%   |   47.51%   |     1.042     |   503   | Lowest Sharpe in Phase 1       |
+| [`run_07`](docs/test_run/run_07) | SL $\Delta \to \mathbf{1.50}$                |   3.00    |   0.25   |  **1.50**   |   30    |    20     |   +13.21%    |   0.453   |   -6.07%   |   52.60%   |     1.319     |   327   | **Phase 2 Winner**             |
+| [`run_08`](docs/test_run/run_08) | SL $\Delta \to \mathbf{0.50}$                |   3.00    |   0.25   |  **0.50**   |   30    |    20     |   +11.68%    |   0.412   |   -6.57%   |   43.84%   |     1.255     |   422   | Tight stop cuts winrate        |
+| [`run_09`](docs/test_run/run_09) | $Z$-Window $\to \mathbf{60}$                 |   3.00    |   0.25   |    1.50     | **60**  |    20     |    +5.16%    |   0.203   |   -6.56%   |   53.68%   |     1.174     |   190   | Excessive lag misses reversion |
+| [`run_10`](docs/test_run/run_10) | $Z$-Window $\to \mathbf{15}$                 |   3.00    |   0.25   |    1.50     | **15**  |    20     |    +8.13%    |   0.278   |   -5.51%   |   50.42%   |     1.132     |   597   | Vulnerable to short-term noise |
+| [`run_11`](docs/test_run/run_11) | Trade Window $\to \mathbf{40}$               | **3.00**  | **0.25** |  **1.50**   | **30**  |  **40**   | **+19.74%**  | **0.627** | **-7.48%** | **50.64%** |   **1.439**   | **393** | **In-Sample Champion**         |
+| [`run_12`](docs/test_run/run_12) | Trade Window $\to \mathbf{10}$               |   3.00    |   0.25   |    1.50     |   30    |  **10**   |   +15.61%    |   0.566   |   -5.65%   |   53.63%   |     1.416     |   317   | Strong runner-up               |
 
 The backtest ran from `2010-01-01` to `2020-12-31`, with 2010 serving as the initial 252-day formation window.
 
-### Out-of-Sample Validation (2021–2026)
+### Out-of-Sample Validation (2020–2026)
 
-The following table illustrates how the champion configuration from the in-sample phase (`run_12`) performed on unseen
+The following table illustrates how the champion configuration from the in-sample phase (`run_11`) performed on unseen
 out-of-sample data (`2020-01-01` to `2026-09-30`, with 2020 serving as the initial formation window), both with and
 without market frictions:
 
-| Performance Metric           | In-Sample Champion ([`run_12`](docs/test_run/run_12)) | Out-of-Sample Gross ([`run_oos_gross`](docs/test_run/run_oos_gross)) | Out-of-Sample Net ([`run_oos_net`](docs/test_run/run_oos_net)) |
+| Performance Metric           | In-Sample Champion ([`run_11`](docs/test_run/run_11)) | Out-of-Sample Gross ([`run_oos_gross`](docs/test_run/run_oos_gross)) | Out-of-Sample Net ([`run_oos_net`](docs/test_run/run_oos_net)) |
 |:-----------------------------|:-----------------------------------------------------:|:--------------------------------------------------------------------:|:--------------------------------------------------------------:|
-| **Total Return**             |                      **+13.08%**                      |                              **-5.82%**                              |                          **-10.51%**                           |
-| **Annualized Return**        |                        +1.24%                         |                                -1.04%                                |                             -1.92%                             |
-| **Annualized Volatility**    |                         2.47%                         |                                3.02%                                 |                             3.03%                              |
-| **Sharpe Ratio**             |                      **+0.511**                       |                              **-0.332**                              |                           **-0.627**                           |
-| **Max Drawdown**             |                      **-3.59%**                       |                             **-11.97%**                              |                          **-14.41%**                           |
-| **Calmar Ratio**             |                        +0.346                         |                                -0.087                                |                             -0.133                             |
-| **Winrate**                  |                      **54.98%**                       |                              **40.54%**                              |                           **38.92%**                           |
-| **Profit Factor**            |                         1.383                         |                                0.803                                 |                             0.681                              |
-| **Payoff Ratio**             |                         1.132                         |                                1.178                                 |                             1.069                              |
-| **Average Holding Duration** |                      15.43 days                       |                              16.21 days                              |                           16.21 days                           |
-| **Expectancy / Trade**       |                      **+$4.03**                       |                              **-$3.45**                              |                           **-$5.96**                           |
-| **Total Closed Trades**      |                          331                          |                                 185                                  |                              185                               |
-| **Total Cumulative Costs**   |                         $0.00                         |                                $0.00                                 |                            $495.19                             |
+| **Total Return**             |                      **+19.74%**                      |                              **+1.47%**                              |                           **-4.97%**                           |
+| **Annualized Return**        |                        +1.82%                         |                                +0.26%                                |                             -0.89%                             |
+| **Annualized Volatility**    |                         2.95%                         |                                3.13%                                 |                             3.13%                              |
+| **Sharpe Ratio**             |                      **+0.627**                       |                              **+0.097**                              |                           **-0.269**                           |
+| **Max Drawdown**             |                      **-7.48%**                       |                              **-8.57%**                              |                           **-9.30%**                           |
+| **Calmar Ratio**             |                        +0.243                         |                                +0.030                                |                             -0.095                             |
+| **Winrate**                  |                      **50.64%**                       |                              **46.15%**                              |                           **43.16%**                           |
+| **Profit Factor**            |                         1.439                         |                                1.035                                 |                             0.881                              |
+| **Payoff Ratio**             |                         1.403                         |                                1.208                                 |                             1.161                              |
+| **Average Holding Duration** |                      18.86 days                       |                              17.58 days                              |                           17.58 days                           |
+| **Expectancy / Trade**       |                      **+$5.06**                       |                              **+$0.60**                              |                           **-$2.14**                           |
+| **Total Closed Trades**      |                          393                          |                                 234                                  |                              234                               |
+| **Total Cumulative Costs**   |                         $0.00                         |                                $0.00                                 |                            $649.60                             |
 
 Here is the performance breakdown for the out-of-sample run including market frictions:
 <p align="center">
@@ -253,43 +255,44 @@ Here is the performance breakdown for the out-of-sample run including market fri
       <em><b>Fig. 2</b> — Out-of-Sample net performance breakdown with market frictions (2021–2026, through Sept 2026).</em>
 </p>
 
-As shown in **Figure 2**, the strategy was profitable from 2021 to 2022 and ended roughly flat in 2023. However, from
-2024 onwards, performance degraded sharply with an annual return of -8.14% in 2024.
+As shown in **Figure 2**, the strategy remained resilient from 2021 to 2023, posting +0.22% in 2021, staying nearly flat
+(-0.98%) during the 2022 bear market, and delivering its strongest year in 2023 (+3.04%). However,
+from 2024 to 2026, net performance gradually eroded up to -3.40% in 2025.
 
 To better understand the strategy's behavior, we can audit the Out-of-Sample trade ledger ([
 `docs/test_run/run_oos_net/trades.csv`](docs/test_run/run_oos_net/trades.csv)) grouped by trade exit year (with 2026
 covering through `2026-09-29`):
 
-|   Year   | Closed Trades |  Winrate  | Gross PnL (No Fees) | Total Frictions |   Net PnL    |
-|:--------:|:-------------:|:---------:|:-------------------:|:---------------:|:------------:|
-| **2021** |      33       |   42.4%   |      +$161.60       |     $91.27      | **+$70.29**  |
-| **2022** |      25       |   44.0%   |      +$204.47       |     $70.75      | **+$133.71** |
-| **2023** |      33       |   42.4%   |       +$28.89       |     $91.34      | **-$62.45**  |
-| **2024** |      37       | **24.3%** |    **-$669.23**     |     $99.51      | **-$768.73** |
-| **2025** |      31       |   41.9%   |       -$55.22       |     $76.15      | **-$131.37** |
-| **2026** |      26       |   42.3%   |      -$277.38       |     $66.15      | **-$343.52** |
+|   Year   | Closed Trades | Winrate | Gross PnL (No Fees) | Total Frictions |   Net PnL    | Annual Equity Return (Net) |
+|:--------:|:-------------:|:-------:|:-------------------:|:---------------:|:------------:|:--------------------------:|
+| **2021** |      41       |  39.0%  |      +$137.06       |     $115.51     | **+$21.55**  |           +0.22%           |
+| **2022** |      35       |  48.6%  |       -$14.93       |     $94.82      | **-$109.75** |           -0.98%           |
+| **2023** |      38       |  42.1%  |    **+$426.16**     |     $104.85     | **+$321.30** |         **+3.04%**         |
+| **2024** |      49       |  40.8%  |       +$12.00       |     $136.85     | **-$124.84** |           -1.37%           |
+| **2025** |      37       |  51.4%  |      -$203.12       |     $102.97     | **-$306.10** |           -3.40%           |
+| **2026** |      34       |  38.2%  |      -$208.79       |     $94.60      | **-$303.39** |           -2.46%           |
 
-As this table shows, the strategy's winrate stayed remarkably consistent around 42%–44% in normal years. It
-even generated positive net profits in 2022 (+1.33%) while the S&P 500 dropped ~18%, validating our
-market-neutral approach. However, in 2024, the strategy suffered its worst year with its winrate cut nearly in half to
-24.3% (accounting for ~70% of total closed-trade net losses). This breakdown can be explained by three main factors:
+As this table shows, the strategy's winrate stayed remarkably consistent around $\mu=43.35\%$ and without considering
+the fees, the strategy was even profitable (+1.47% gross). We can also see that our
+market neutral approach works, since in 2022, we did a flat year whereas the S&P 500 dropped ~18%. However, from
+2024 to 2026, gross performance weakened and net returns turned negative (-4.97% overall). This behavior is explained by
+three main factors:
 
-- **Regime Shift**: Pairs trading relies on the hypothesis that when the spread between two
-  cointegrated peers diverges, it is a temporary anomaly that will revert to its mean. From 2024 onward, however,
-  widespread AI adoption fundamentally shifted asset pricing. As documented by S&P Dow Jones Indices dispersion reports,
-  companies were no longer driven primarily by shared macroeconomic
-  factors, but rather by their individual exposure to AI. Because 2024 marked the onset of this boom, stocks underwent
-  sudden structural repricings. Since our model relies on a backward-looking 252-day window to select pairs, it
-  initially had no historical data reflecting this disruption, leading it to trade 2023-formed pairs whose cointegration
-  had just broken down. In subsequent years (2025–2026), losses shrank significantly and the winrate recovered to ~42%.
-  Once the 2024 shock entered the lookback window, the model began adapting to the new market dynamics, while remaining
-  exposed to volatility spikes from ongoing AI breakthroughs.
+- **Regime Shift**: Pairs trading relies on the hypothesis that when the spread between two cointegrated peers diverges,
+  it is a temporary anomaly that will revert to its mean. From 2024 onwards, however, widespread AI
+  adoption fundamentally shifted asset pricing. As documented by S&P Dow Jones Indices dispersion reports, companies
+  were no longer driven primarily by shared macroeconomic factors, but rather by their individual exposure to AI. As the
+  AI boom accelerated from 2024 through 2026,
+  historically cointegrated peers increasingly decoupled whenever one company captured AI-driven growth while the
+  other lagged, eroding three years of profit.
 - **Static OLS Hedge Ratio**: Because the hedge ratio $\beta$ and intercept $\alpha$ are estimated via a
   static OLS regression over a 252-day backward-looking formation window, sudden structural re-ratings take months
   to be fully reflected, leaving the spread model behind during rapid regime shifts.
-- **Friction Drag**: Across all 185 closed trades, commissions, slippage, and short-borrow fees totaled **$495.19**
-  —accounting for **47% of the overall net portfolio loss** (`-10.51%` Net vs. `-5.82%` Gross) and turning 2023 from a
-  profitable gross year (`+$28.89`) into a slight net loss (`-$62.45`).
+- **Friction Drag**: Across all 234 closed trades, commissions, slippage, and short-borrow fees totaled **$649.60**.
+  While the underlying statistical signal had a positive gross
+  expectancy (+$0.60/trade, Profit Factor 1.035), market frictions completely absorbed the gross alpha—most notably in
+  2024, where a slightly profitable gross year (+$12.00) was turned into a -$124.84 net loss (-1.37%)
+  purely due to $136.85 in execution and borrowing costs.
 
 ## Project Architecture
 
@@ -403,11 +406,14 @@ select and trade meaningful pairs.
 The key takeaways from this project are:
 
 1. **Theory vs. Market Reality**: A pair being statistically tradable doesn't mean it will survive the markets. As we
-   saw in the Out-of-Sample run in 2024, market regime shifts have a major influence on trading and can break a model
+   saw in the Out-of-Sample run from 2024 to 2026, market regime shifts have a major influence on trading and can break
+   a model
    that had previously delivered three years of consistent profit.
 2. **Impact of Trading Fees**: At first, when I backtested my strategy without frictions, I saw promising profits. Once
    commissions, slippage, and short-borrowing fees were introduced, I discovered the hard reality of execution costs and
-   how large their impact is (accounting for 47% of the Out-of-Sample net loss). This really taught me that in active
+   how large their impact is (turning a profitable +1.47% gross Out-of-Sample return into a -4.97% net loss after $
+   649.60
+   in cumulative costs). This really taught me that in active
    trading, it is far better to take fewer high-conviction
    trades with larger expected payoffs than many small trades where profits are eaten away by frictions.
 3. **Software Architecture as a Research Tool**: This project also taught me how important it is to design a modular
