@@ -238,7 +238,7 @@ class PairEngine:
 
     @staticmethod
     def _test_pair(ticker_a: str, ticker_b: str, log_prices: pd.DataFrame, config: PairSelectionConfig) -> tuple[
-        Pair, bool]:
+        Pair | None, bool]:
 
         result_ab = PairEngine._engle_granger(
             y=log_prices[ticker_a],
@@ -264,6 +264,11 @@ class PairEngine:
         half_life = None
         crossings = None
 
+        # Don't trade meaningless pairs
+        if best["hedge_ratio"] == 0 or best["spread"].std() <= 0:
+            return None, False
+
+        # Check mean reverting behavior
         if best["pvalue"] <= config.significance_level:
             (is_valid, hurst, half_life, crossings) = PairEngine._validate_pair(
                 spread=best["spread"], config=config

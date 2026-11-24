@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from models import TradingOrder, Pair, PairPosition, BacktestConfig
+from models import TradingOrder, Pair, PairPosition, BacktestConfig, TradingSignal
 from utils.validation_utils import ValidationUtils as VUtils
 
 logger = logging.getLogger(__name__)
@@ -173,8 +173,12 @@ class Portfolio:
         )
 
         # Logging
-        tag = "🛑 STOP " if (
-                exit_zscore is not None and abs(exit_zscore) >= abs(position.stop_loss_zscore)) else "🔴 CLOSE"
+        if position.direction == TradingSignal.LONG_SPREAD:
+            is_stop = exit_zscore is not None and exit_zscore <= position.stop_loss_zscore
+        else:
+            is_stop = exit_zscore is not None and exit_zscore >= position.stop_loss_zscore
+        tag = "🛑 STOP " if is_stop else "🔴 CLOSE"
+
         z_str = f"{exit_zscore:+.2f}" if exit_zscore is not None else "TIME"
         days_str = f"{position.holding_duration.days}d" if position.holding_duration else "0d"
 
